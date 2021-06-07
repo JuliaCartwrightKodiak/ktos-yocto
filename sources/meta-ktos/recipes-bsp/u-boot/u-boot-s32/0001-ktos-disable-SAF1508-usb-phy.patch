@@ -1,0 +1,38 @@
+From fc58af464e21a1314e39f78cbf19ed31bd28d30c Mon Sep 17 00:00:00 2001
+From: Julia Cartwright <j.cartwright@kodiak.ai>
+Date: Mon, 7 Jun 2021 10:09:31 -0500
+Subject: [PATCH] [ktos]: disable SAF1508 usb phy
+
+Occasionally, the USB phy initialization will cause the board to hang at boot.
+Disable it for now.
+---
+ configs/s32g274asbc_defconfig      | 2 +-
+ configs/s32g274asbc_qspi_defconfig | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/configs/s32g274asbc_defconfig b/configs/s32g274asbc_defconfig
+index f19f65a127..00325ba2fb 100644
+--- a/configs/s32g274asbc_defconfig
++++ b/configs/s32g274asbc_defconfig
+@@ -1092,7 +1092,7 @@ CONFIG_SERDES_S32GEN1=y
+ CONFIG_PHY=y
+ # CONFIG_NOP_PHY is not set
+ # CONFIG_MSM8916_USB_PHY is not set
+-CONFIG_SAF1508BET_USB_PHY=y
++# CONFIG_SAF1508BET_USB_PHY is not set
+ # CONFIG_MVEBU_COMPHY_SUPPORT is not set
+ 
+ #
+diff --git a/configs/s32g274asbc_qspi_defconfig b/configs/s32g274asbc_qspi_defconfig
+index 2e600a9088..48027e6867 100644
+--- a/configs/s32g274asbc_qspi_defconfig
++++ b/configs/s32g274asbc_qspi_defconfig
+@@ -1092,7 +1092,7 @@ CONFIG_SERDES_S32GEN1=y
+ CONFIG_PHY=y
+ # CONFIG_NOP_PHY is not set
+ # CONFIG_MSM8916_USB_PHY is not set
+-CONFIG_SAF1508BET_USB_PHY=y
++# CONFIG_SAF1508BET_USB_PHY is not set
+ # CONFIG_MVEBU_COMPHY_SUPPORT is not set
+ 
+ #
