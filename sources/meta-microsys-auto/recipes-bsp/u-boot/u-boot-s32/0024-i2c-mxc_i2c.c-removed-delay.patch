@@ -1,0 +1,30 @@
+From bd64d96c500ae5ed590e7a72542c646f5f867280 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Thu, 15 Apr 2021 10:39:24 +0200
+Subject: [PATCH 24/38] i2c: mxc_i2c.c: removed delay
+Organization: MicroSys Electronics GmbH
+
+Removed delay because PMIC initialization happens now during
+ATF-boot.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/i2c/mxc_i2c.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/i2c/mxc_i2c.c b/drivers/i2c/mxc_i2c.c
+index 9dfc5b42c3e5..17de555f07be 100644
+--- a/drivers/i2c/mxc_i2c.c
++++ b/drivers/i2c/mxc_i2c.c
+@@ -933,8 +933,6 @@ static int mxc_i2c_probe(struct udevice *bus)
+ 		return ret;
+ #endif
+
+-    udelay(5*1000); // wait until clock is stable
+-
+ 	/*
+ 	 * See Documentation/devicetree/bindings/i2c/i2c-imx.txt
+ 	 * Use gpio to force bus idle when necessary.
+--
+2.30.2
+

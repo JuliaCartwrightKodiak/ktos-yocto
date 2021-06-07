@@ -1,0 +1,1176 @@
+From 375bc28e40ed32a8a96668d75e47b211289c47d1 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 09:55:16 +0200
+Subject: [PATCH 35/38] s32g274asbc: fixed support for BSP28.0
+Organization: MicroSys Electronics GmbH
+
+Fixes for s32g274asbc needed for running with BSP28.0.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/dts/s32g274asbc.dts             | 207 +++++++++-
+ board/microsys/s32g274asbc/Kconfig       |   5 +-
+ board/microsys/s32g274asbc/Makefile      |  24 +-
+ board/microsys/s32g274asbc/pincfg.c      | 481 -----------------------
+ board/microsys/s32g274asbc/pincfg.h      |  47 ---
+ board/microsys/s32g274asbc/s32-gen1.cfg  |  12 -
+ board/microsys/s32g274asbc/s32g274asbc.c |  21 +-
+ configs/s32g274asbc_defconfig            |  52 ++-
+ include/configs/s32g274asbc.h            |   7 +-
+ 9 files changed, 260 insertions(+), 596 deletions(-)
+ delete mode 100644 board/microsys/s32g274asbc/pincfg.c
+ delete mode 100644 board/microsys/s32g274asbc/pincfg.h
+ delete mode 100644 board/microsys/s32g274asbc/s32-gen1.cfg
+
+diff --git a/arch/arm/dts/s32g274asbc.dts b/arch/arm/dts/s32g274asbc.dts
+index d35b1af34cc2..a7795977e90b 100644
+--- a/arch/arm/dts/s32g274asbc.dts
++++ b/arch/arm/dts/s32g274asbc.dts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * Copyright 2017-2019 NXP
+- * Copyright (C) 2020 MicroSys Electronics GmbH
++ * Copyright (C) 2020-2021 MicroSys Electronics GmbH
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -14,13 +14,25 @@
+
+ / {
+     model = "MicroSys S32G274ASBC";
+-    compatible = "fsl,s32g275-simu", "fsl,s32g275", "fsl,s32gen1",
+-                 "arm,vexpress,v2p-aarch64", "arm,vexpress";
+
+     aliases {
+         usb0 = &usbotg;
+     };
+
++#ifdef CONFIG_HSE_SECBOOT
++    reserved-memory {
++        #address-cells = <2>;
++        #size-cells = <2>;
++        ranges;
++
++        /* reserved space to store hse data */
++        hse_reserved: hse_reserved@0x80000000 {
++            no-map;
++            reg = <0 0x80000000 0 0x40000>; /* 256K */
++        };
++    };
++#endif
++
+     memory@80000000 {
+         device_type = "memory";
+         reg = <0 0x80000000 0 0x80000000>;
+@@ -39,6 +51,8 @@
+     usbotg: usb@44064000 {
+         compatible = "fsl,imx27-usb";
+         reg = <0x0 0x44064000 0x0 0x200>;
++        pinctrl-0 = <&pinctrl0_usb &pinctrl1_usb>;
++        pinctrl-names = "default";
+         phys = <&saf1508_phy>;
+         dr_mode = "otg";
+     };
+@@ -64,6 +78,8 @@
+ };
+
+ &qspi {
++    pinctrl-0 = <&pinctrl0_qspi>;
++    pinctrl-names = "default";
+     compatible = "fsl,s32gen1-qspi";
+     status = "okay";
+     spi-max-frequency = <200000000>;
+@@ -82,14 +98,22 @@
+ };
+
+ &dspi1 {
+-	/*status = "okay";*/
++    pinctrl-0 = <&pinctrl0_dspi1 &pinctrl1_dspi1>;
++    pinctrl-names = "default";
++    status = "okay";
+ };
+
+ &dspi5 {
++    pinctrl-0 = <&pinctrl0_dspi5 &pinctrl1_dspi5>;
++    pinctrl-names = "default";
+     status = "okay";
+ };
+
+ &usdhc0 {
++    pinctrl-0 = <&pinctrl0_sd0>;
++    pinctrl-1 = <>;
++    pinctrl-2 = <>;
++    pinctrl-names = "default", "state_100mhz", "state_200mhz";
+     status = "okay";
+ };
+
+@@ -118,6 +142,8 @@
+ };
+
+ &i2c0 {
++    pinctrl-0 = <&pinctrl0_i2c0>;
++    pinctrl-names = "default";
+     clock-frequency=<100000>;
+     status = "okay";
+
+@@ -125,6 +151,7 @@
+         compatible = "fcs,fxl6408";
+         reg = <0x43>;
+         #gpio-cells = <2>;
++        gpio-bank-name = "mpx0-";
+         direction = [10];
+         input-default-state = [0f];
+         output-default-state = [00];
+@@ -164,6 +191,8 @@
+ };
+
+ &i2c1 {
++    pinctrl-0 = <&pinctrl0_i2c1 &pinctrl1_i2c1>;
++    pinctrl-names = "default";
+     clock-frequency=<100000>;
+     status = "okay";
+
+@@ -171,6 +200,7 @@
+         compatible = "fcs,fxl6408";
+         reg = <0x43>;
+         #gpio-cells = <2>;
++        gpio-bank-name = "crx0-";
+         direction = [c0];
+         input-default-state = [3f];
+         output-default-state = [00];
+@@ -180,11 +210,15 @@
+ };
+
+ &i2c2 {
++    pinctrl-0 = <&pinctrl0_i2c2 &pinctrl1_i2c2>;
++    pinctrl-names = "default";
+     clock-frequency=<100000>;
+     status = "okay";
+ };
+
+ &i2c4 {
++    pinctrl-0 = <&pinctrl0_i2c4 &pinctrl1_i2c4>;
++    pinctrl-names = "default";
+     clock-frequency=<100000>;
+     status = "okay";
+
+@@ -201,3 +235,168 @@
+     };
+
+ };
++
++&pinctrl0 {
++    board_pinctrl0 {
++        pinctrl0_i2c0: pinctrl0_i2c0 {
++            fsl,pins = <PB00_MSCR_S32G2XX PB00_I2C0_SDA_CFG
++                    PB01_MSCR_S32G2XX PB01_I2C0_SCL_CFG
++                    I2C0_SDA_IMCR PB00_I2C0_SDA_IN
++                    I2C0_SCL_IMCR PB01_I2C0_SCL_IN
++                    >;
++        };
++
++        pinctrl0_i2c1: pinctrl0_i2c1 {
++            fsl,pins = <PB03_MSCR_S32G2XX PB03_I2C1_SCL_CFG
++                    PB04_MSCR_S32G2XX PB04_I2C1_SDA_CFG
++                    >;
++        };
++
++        pinctrl0_i2c2: pinctrl0_i2c2 {
++            fsl,pins = <PB05_MSCR_S32G2XX PB05_I2C2_SCL_CFG
++                    PB06_MSCR_S32G2XX PB06_I2C2_SDA_CFG
++                    >;
++        };
++
++        pinctrl0_i2c4: pinctrl0_i2c4 {
++            fsl,pins = <PC01_MSCR_S32G2XX PC01_I2C4_SDA_CFG
++                    PC02_MSCR_S32G2XX PC02_I2C4_SCL_CFG
++                    >;
++        };
++
++        pinctrl0_qspi: pinctrl0_qspi {
++            fsl,pins = <PF05_MSCR_S32G2XX PF05_QSPI_DATA_A0_CFG
++                    PF06_MSCR_S32G2XX PF06_QSPI_DATA_A1_CFG
++                    PF07_MSCR_S32G2XX PF07_QSPI_DATA_A2_CFG
++                    PF08_MSCR_S32G2XX PF08_QSPI_DATA_A3_CFG
++                    PF09_MSCR_S32G2XX PF09_QSPI_DATA_A4_CFG
++                    PF10_MSCR_S32G2XX PF10_QSPI_DATA_A5_CFG
++                    PF11_MSCR_S32G2XX PF11_QSPI_DATA_A6_CFG
++                    PF12_MSCR_S32G2XX PF12_QSPI_DATA_A7_CFG
++                    PF13_MSCR_S32G2XX PF13_QSPI_DQS_A_CFG
++                    PG00_MSCR_S32G2XX PG00_QSPI_CLK_A_CFG
++                    //PG01_MSCR_S32G2XX PG01_QSPI_CLK_A_b_CFG
++                    //PG02_MSCR_S32G2XX PG02_QSPI_CLK_2A_CFG
++                    //PG03_MSCR_S32G2XX PG03_QSPI_CLK_2A_b_CFG
++                    PG04_MSCR_S32G2XX PG04_QSPI_CS_A0
++                    //PG05_MSCR_S32G2XX PG05_QSPI_CS_A1
++                    QSPI_DATA0_A_IMCR PF05_QSPI_DATA_A0_IN
++                    QSPI_DATA1_A_IMCR PF06_QSPI_DATA_A1_IN
++                    QSPI_DATA2_A_IMCR PF07_QSPI_DATA_A2_IN
++                    QSPI_DATA3_A_IMCR PF08_QSPI_DATA_A3_IN
++                    QSPI_DATA4_A_IMCR PF09_QSPI_DATA_A4_IN
++                    QSPI_DATA5_A_IMCR PF10_QSPI_DATA_A5_IN
++                    QSPI_DATA6_A_IMCR PF11_QSPI_DATA_A6_IN
++                    QSPI_DATA7_A_IMCR PF12_QSPI_DATA_A7_IN
++                    QSPI_DQS_A_IMCR PF13_DQS_A_IN
++                    >;
++        };
++
++        pinctrl0_sd0: pinctrl0_sd0 {
++            fsl,pins = <PC14_MSCR_S32G2XX PC14_SD0_CLK_CFG
++                    PC15_MSCR_S32G2XX PC15_SD0_CMD_CFG
++                    PD00_MSCR_S32G2XX PD00_SD0_D0_CFG
++                    PD01_MSCR_S32G2XX PD01_SD0_D1_CFG
++                    PD02_MSCR_S32G2XX PD02_SD0_D2_CFG
++                    PD03_MSCR_S32G2XX PD03_SD0_D3_CFG
++                    PD04_MSCR_S32G2XX PD04_SD0_D4_CFG
++                    PD05_MSCR_S32G2XX PD05_SD0_D5_CFG
++                    PD06_MSCR_S32G2XX PD06_SD0_D6_CFG
++                    PD07_MSCR_S32G2XX PD07_SD0_D7_CFG
++                    PD08_MSCR_S32G2XX PD08_SD0_RST_CFG
++                    PD09_MSCR_S32G2XX PD09_SD0_VSELECT_CFG
++                    PD10_MSCR_S32G2XX PD10_SD0_DQS_CFG
++                    SD0_CMD_IMCR PC15_SD0_CMD_IN
++                    SD0_D0_IMCR PD00_SD0_D0_IN
++                    SD0_D1_IMCR PD01_SD0_D1_IN
++                    SD0_D2_IMCR PD02_SD0_D2_IN
++                    SD0_D3_IMCR PD03_SD0_D3_IN
++                    SD0_D4_IMCR PD04_SD0_D4_IN
++                    SD0_D5_IMCR PD05_SD0_D5_IN
++                    SD0_D6_IMCR PD06_SD0_D6_IN
++                    SD0_D7_IMCR PD07_SD0_D7_IN
++                    SD0_DQS_IMCR PD10_SD0_DQS_IN
++                    >;
++        };
++
++        pinctrl0_dspi1: pinctrl0_dspi1 {
++            fsl,pins = <PA06_MSCR_S32G2XX PA06_SPI1_SOUT_CFG
++                    PA07_MSCR_S32G2XX PA07_SPI1_CS0_CFG
++                    PA08_MSCR_S32G2XX PA08_SPI1_SCK_CFG
++                    PF15_MSCR_S32G2XX PF15_SPI1_SIN_CFG
++                    >;
++        };
++
++        pinctrl0_dspi5: pinctrl0_dspi5 {
++            fsl,pins = <PA09_MSCR_S32G2XX PA09_SPI5_SCK_CFG
++                    PA10_MSCR_S32G2XX PA10_SPI5_SIN_CFG
++                    PA11_MSCR_S32G2XX PA11_SPI5_SOUT_CFG
++                    PA12_MSCR_S32G2XX PA12_SPI5_CS0_CFG
++                    >;
++        };
++
++        pinctrl0_usb: pinctrl0_usb {
++            fsl,pins = <PD14_MSCR_S32G2XX PD14_USB_DATA0_CFG
++                    PD15_MSCR_S32G2XX PD15_USB_DATA1_CFG
++                    PE00_MSCR_S32G2XX PE00_USB_DATA2_CFG
++                    PE01_MSCR_S32G2XX PE01_USB_DATA3_CFG
++                    >;
++        };
++
++    };
++};
++
++&pinctrl1 {
++    board_pinctrl1 {
++        pinctrl1_i2c1: pinctrl1_i2c1 {
++            fsl,pins = <I2C1_SCL_IMCR PB03_I2C1_SCL_IN
++                    I2C1_SDA_IMCR PB04_I2C1_SDA_IN
++                    >;
++        };
++
++        pinctrl1_i2c2: pinctrl1_i2c2 {
++            fsl,pins = <I2C2_SCL_IMCR PB05_I2C2_SCL_IN
++                    I2C2_SDA_IMCR PB06_I2C2_SDA_IN
++                    >;
++        };
++
++        pinctrl1_i2c4: pinctrl1_i2c4 {
++            fsl,pins = <I2C4_SDA_IMCR PC01_I2C4_SDA_IN
++                    I2C4_SCL_IMCR PC02_I2C4_SCL_IN
++                    >;
++        };
++
++        pinctrl1_dspi1: pinctrl1_dspi1 {
++            fsl,pins = <DSPI1_SIN_IMCR PF15_SPI1_SIN_IN
++                    >;
++        };
++
++        pinctrl1_dspi5: pinctrl1_dspi5 {
++            fsl,pins = <DSPI5_SIN_IMCR PA10_SPI5_SIN_IN
++                    >;
++        };
++
++        pinctrl1_usb: pinctrl1_usb {
++            fsl,pins = <PH00_MSCR_S32G2XX PH00_USB_DATA7_CFG
++                    PL08_MSCR_S32G2XX PL08_USB_CLK_CFG
++                    PL09_MSCR_S32G2XX PL09_USB_DIR_CFG
++                    PL10_MSCR_S32G2XX PL10_USB_STP_CFG
++                    PL11_MSCR_S32G2XX PL11_USB_NXT_CFG
++                    PL12_MSCR_S32G2XX PL12_USB_DATA4_CFG
++                    PL13_MSCR_S32G2XX PL13_USB_DATA5_CFG
++                    PL14_MSCR_S32G2XX PL14_USB_DATA6_CFG
++                    USB_ULPI_CLK_IMCR PL08_USB_CLK_IN
++                    USB_ULPI_DATA0_IMCR PD14_USB_DATA0_IN
++                    USB_ULPI_DATA1_IMCR PD15_USB_DATA1_IN
++                    USB_ULPI_DATA2_IMCR PE00_USB_DATA2_IN
++                    USB_ULPI_DATA3_IMCR PE01_USB_DATA3_IN
++                    USB_ULPI_DATA4_IMCR PL12_USB_DATA4_IN
++                    USB_ULPI_DATA5_IMCR PL13_USB_DATA5_IN
++                    USB_ULPI_DATA6_IMCR PL14_USB_DATA6_IN
++                    USB_ULPI_DATA7_IMCR PH00_USB_DATA7_IN
++                    USB_ULPI_DIR_IMCR PL09_USB_DIR_IN
++                    USB_ULPI_NXT_IMCR PL11_USB_NXT_IN
++                    >;
++        };
++    };
++};
+diff --git a/board/microsys/s32g274asbc/Kconfig b/board/microsys/s32g274asbc/Kconfig
+index 418dacc6f710..3b833a9235c5 100644
+--- a/board/microsys/s32g274asbc/Kconfig
++++ b/board/microsys/s32g274asbc/Kconfig
+@@ -7,8 +7,9 @@ config SYS_VENDOR
+     default "microsys"
+
+ config SYS_DATA_BASE
+-    hex "Data Base"
+-    default 0x34000000 if TARGET_S32G274ASBC
++    hex "Data Base" if !S32_ATF_BOOT_FLOW
++    default 0xff800000 if S32_ATF_BOOT_FLOW
++    default 0x34000000
+     help
+       U-boot data base address (normally SRAM base address)
+
+diff --git a/board/microsys/s32g274asbc/Makefile b/board/microsys/s32g274asbc/Makefile
+index 427faca98aef..e6c24b2e80d8 100644
+--- a/board/microsys/s32g274asbc/Makefile
++++ b/board/microsys/s32g274asbc/Makefile
+@@ -1,40 +1,42 @@
+ #
+ # (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+ # Copyright 2018-2020 NXP
+-# Copyright (C) 2020 MicroSys Electronics GmbH
++# Copyright (C) 2020-2021 MicroSys Electronics GmbH
+ #
+ # SPDX-License-Identifier:	GPL-2.0+
+ #
+
+ MPXS32G274A_PATH = ../mpxs32g274a
+-MPXS32G274A_COMMON_OBJ = dq_swap_cfg.o
+-MPXS32G274A_COMMON_OBJ += mpxs32g274a.o pinctl.o
++MPXS32G274A_COMMON_OBJ += mpxs32g274a.o
+
+ NXP_S32_PATH = ../../freescale/s32-gen1
+-NXP_S32_OBJ = $(addprefix $(NXP_S32_PATH)/s32g274a/,ddrc_cfg.o dmem_cfg.o phy_cfg.o pie_cfg.o)
+-NXP_S32_OBJ += $(addprefix $(NXP_S32_PATH)/,ddrss_cfg.o imem_cfg.o ddr_init.o ddr_utils.o)
++NXP_S32_OBJ = $(addprefix $(NXP_S32_PATH)/, \
++                ddr_density.o ddrss_cfg.o imem_cfg.o ddr_init.o ddr_utils.o)
++NXP_S32_OBJ += $(addprefix $(NXP_S32_PATH)/s32g274a/rev2/, \
++                 ddrc_cfg_rev2.o dmem_cfg_rev2.o phy_cfg_rev2.o pie_cfg_rev2.o)
++
++STANDALONE_BOOT += $(addprefix $(NXP_S32_PATH)/s32g274a/, \
++                     ddrc_cfg.o dmem_cfg.o dq_swap_cfg.o phy_cfg.o pie_cfg.o)
+
+ ccflags-$(CONFIG_S32_GEN1) += -Iarch/$(ARCH)/cpu/armv8/s32
+ ccflags-$(CONFIG_S32_GEN1) += -Iboard/freescale/s32-gen1
+ ccflags-$(CONFIG_S32_GEN1) += -Idrivers/clk/s32/include
+
+-ccflags-$(CONFIG_S32_GEN1) += -Iboard/$(CONFIG_SYS_VENDOR)/$(CONFIG_SYS_BOARD) -Iboard/$(CONFIG_SYS_VENDOR)/mpxs32g274a
++ccflags-$(CONFIG_S32_GEN1) += -Iboard/$(CONFIG_SYS_VENDOR)/$(CONFIG_SYS_BOARD) \
++	-Iboard/$(CONFIG_SYS_VENDOR)/mpxs32g274a
+ obj-y := $(MPXS32G274A_PATH)/common.o
+
+-obj-$(CONFIG_S32G274A) += $(MPXS32G274A_PATH)/s32g274a.o $(NXP_S32_OBJ)
+-
+ ifeq (,$(CONFIG_OF_EMBED)$(CONFIG_OF_SEPARATE))
+ 	obj-y	+= ../../../tools/lib/fdtdec.o ../../../drivers/core/ofnode.o
+ endif
+
+ obj-$(CONFIG_NETDEVICES) += $(MPXS32G274A_PATH)/eth.o
+
+-obj-$(CONFIG_TARGET_S32G274ASBC) += s32g274asbc.o pincfg.o
++obj-$(CONFIG_TARGET_S32G274ASBC) += $(NXP_S32_OBJ) s32g274asbc.o
++obj-$(CONFIG_S32_STANDALONE_BOOT_FLOW) += $(STANDALONE_BOOT)
+
+ ifneq ($(filter y,$(CONFIG_TARGET_S32G274ASBC)),)
+ obj-$(CONFIG_SYS_FSL_DDRSS) += $(addprefix $(MPXS32G274A_PATH)/, $(MPXS32G274A_COMMON_OBJ))
+ endif
+
+-#obj-$(CONFIG_SYS_FSL_DDRSS) += ddrss_regconf.o ddrss_firmware.o
+-
+ #########################################################################
+diff --git a/board/microsys/s32g274asbc/pincfg.c b/board/microsys/s32g274asbc/pincfg.c
+deleted file mode 100644
+index 55ac8dc3a977..000000000000
+--- a/board/microsys/s32g274asbc/pincfg.c
++++ /dev/null
+@@ -1,481 +0,0 @@
+-/* -*-C-*- */
+-/* SPDX-License-Identifier:    GPL-2.0+ */
+-/*
+- * Copyright (C) 2020 MicroSys Electronics GmbH
+- *
+- */
+-
+-#include "pincfg.h"
+-
+-PIN(pb00, CR('B', 0),
+-        PIN_INOUT(I2C_SDA_O, CR('B', 0), 1, 565, 2)  // I2C0_SDA_O/I2C0_SDA_I
+-);
+-
+-PIN(pb01, CR('B', 1),
+-        PIN_INOUT(I2C_SCLK_O, CR('B', 1), 1, 566, 2)  // I2C0_SCLK_O/I2C0_SCLK_I
+-);
+-
+-const pin_t pb03[] = {
+-    [GPIO_IDX] = {.num = CR('B', 3),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[19]
+-    [I2C_SCLK_O] = {.num = CR('B', 3),.mux = SIUL2_MSCR_MUX_MODE(1)},   // I2C1_SCLK_O
+-    [I2C_SCLK_I] = {.num = 717,.mux = SIUL2_MSCR_MUX_MODE(2)},  // I2C1_SCLK_I
+-};
+-
+-const pin_t pb04[] = {
+-    [GPIO_IDX] = {.num = CR('B', 4),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[20]
+-    [I2C_SDA_O] = {.num = CR('B', 4),.mux = SIUL2_MSCR_MUX_MODE(1)},    // I2C1_SDA_O
+-    [I2C_SDA_I] = {.num = 718,.mux = SIUL2_MSCR_MUX_MODE(2)},   // I2C1_SDA_I
+-};
+-
+-const pin_t pb05[] = {
+-    [GPIO_IDX] = {.num = CR('B', 5),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[21]
+-    [I2C_SCLK_O] = {.num = CR('B', 5),.mux = SIUL2_MSCR_MUX_MODE(1)},   // I2C2_SCLK_O
+-    [I2C_SCLK_I] = {.num = 719,.mux = SIUL2_MSCR_MUX_MODE(2)},  // I2C2_SCLK_I
+-};
+-
+-const pin_t pb06[] = {
+-    [GPIO_IDX] = {.num = CR('B', 6),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[22]
+-    [I2C_SDA_O] = {.num = CR('B', 6),.mux = SIUL2_MSCR_MUX_MODE(1)},    // I2C2_SDA_O
+-    [I2C_SDA_I] = {.num = 720,.mux = SIUL2_MSCR_MUX_MODE(2)},   // I2C2_SDA_I
+-};
+-
+-PIN(pb11, CR('B', 11),                            // GPIO[27]
+-        PIN_OUTPUT(CAN_TX_O, CR('B', 11), 2)      // CAN2_TX
+-);
+-
+-PIN(pb12, CR('B', 12),                            // GPIO[28]
+-        PIN_INPUT(CAN_RX_I, 632, 2)               // CAN2_RX
+-);
+-
+-PIN(pb13, CR('B', 13),                            // GPIO[29]
+-        PIN_OUTPUT(CAN_TX_O, CR('B', 13), 1)      // CAN3_TX
+-);
+-
+-PIN(pb14, CR('B', 14),                            // GPIO[30]
+-        PIN_INPUT(CAN_RX_I, 633, 3)               // CAN3_RX
+-);
+-
+-PIN(pc01, CR('C', 1),
+-        PIN_INOUT(I2C_SDA_O, CR('C', 1), 1, 724, 3)  // I2C4_SDA_O/I2C4_SDA_I
+-);
+-
+-PIN(pc02, CR('C', 2),
+-        PIN_INOUT(I2C_SCLK_O, CR('C', 2), 2, 723, 3)  // I2C4_SCLK_O/I2C4_SCLK_I
+-);
+-
+-PIN(pc09, CR('C', 9),                       // GPIO[41]
+-        PIN_OUTPUT(LIN_TX_O, CR('C', 9), 1) // LIN0_TX_O
+-);
+-
+-PIN(pc10, CR('C', 10),                               // GPIO[42]
+-        PIN_INOUT(LIN_RX_O, CR('C', 10), 2, 512, 2)  // LIN0_RX_O/LIN0_RX_I
+-);
+-
+-#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
+-#else
+-
+-const pin_t pe02[] = {
+-    [GPIO_IDX] = {.num = CR('E', 02),.mux = SIUL2_MSCR_MUX_MODE(0)},    // GPIO[66]
+-    [TX_CLK_O] = {.num = CR('E', 02),.mux = SIUL2_MSCR_MUX_MODE(1)},    // PFE_MAC0_TX_CLK_O
+-};
+-
+-const pin_t pe03[] = {
+-    [GPIO_IDX] = {.num = CR('E', 03),.mux = SIUL2_MSCR_MUX_MODE(0)},    // GPIO[67]
+-    [TX_EN_O] = {.num = CR('E', 03),.mux = SIUL2_MSCR_MUX_MODE(1)}, // PFE_MAC0_TX_EN_O
+-};
+-
+-const pin_t pe04[] = {
+-    [GPIO_IDX] = {.num = CR('E', 4),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[68]
+-    [TX_D_O] = {.num = CR('E', 4),.mux = SIUL2_MSCR_MUX_MODE(1)},   // PFE_MAC0_TXD_O[0]
+-};
+-
+-const pin_t pe05[] = {
+-    [GPIO_IDX] = {.num = CR('E', 5),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[69]
+-    [TX_D_O] = {.num = CR('E', 5),.mux = SIUL2_MSCR_MUX_MODE(1)},   // PFE_MAC0_TXD_O[1]
+-};
+-
+-const pin_t pe06[] = {
+-    [GPIO_IDX] = {.num = CR('E', 6),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[70]
+-    [TX_D_O] = {.num = CR('E', 6),.mux = SIUL2_MSCR_MUX_MODE(1)},   // PFE_MAC0_TXD_O[2]
+-};
+-
+-const pin_t pe07[] = {
+-    [GPIO_IDX] = {.num = CR('E', 7),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[71]
+-    [TX_D_O] = {.num = CR('E', 7),.mux = SIUL2_MSCR_MUX_MODE(1)},   // PFE_MAC0_TXD_O[3]
+-};
+-
+-const pin_t pe08[] = {
+-    [GPIO_IDX] = {.num = CR('E', 8),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[72]
+-    [RX_CLK_O] = {.num = CR('E', 8),.mux = SIUL2_MSCR_MUX_MODE(1)}, // PFE_MAC0_RX_CLK_O
+-    [RX_CLK_I] = {.num = 529,.mux = SIUL2_MSCR_MUX_MODE(2)},    // PFE_MAC0_RX_CLK_I
+-};
+-
+-const pin_t pe09[] = {
+-    [GPIO_IDX] = {.num = CR('E', 9),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[73]
+-    [RX_DV_O] = {.num = CR('E', 9),.mux = SIUL2_MSCR_MUX_MODE(6)},  // PFE_MAC0_RXDV_O
+-    [RX_DV_I] = {.num = 530,.mux = SIUL2_MSCR_MUX_MODE(2)}, // PFE_MAC0_RXDV_I
+-};
+-
+-const pin_t pe10[] = {
+-    [GPIO_IDX] = {.num = CR('E', 10),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[74]
+-    [RX_D_O] = {.num = CR('E', 10),.mux = SIUL2_MSCR_MUX_MODE(6)},   // GMAC0_RXD_O[0]
+-    [RX_D_I] = {.num = 531,.mux = SIUL2_MSCR_MUX_MODE(2)},  // GMAC0_RXD_I[0]
+-};
+-
+-const pin_t pe11[] = {
+-    [GPIO_IDX] = {.num = CR('E', 11),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[75]
+-    [RX_D_O] = {.num = CR('E', 11),.mux = SIUL2_MSCR_MUX_MODE(6)},   // GMAC0_RXD_O[1]
+-    [RX_D_I] = {.num = 532,.mux = SIUL2_MSCR_MUX_MODE(2)},  // GMAC0_RXD_I[1]
+-};
+-
+-const pin_t pe12[] = {
+-    [GPIO_IDX] = {.num = CR('E', 12),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[76]
+-    [RX_D_O] = {.num = CR('E', 12),.mux = SIUL2_MSCR_MUX_MODE(6)},   // GMAC0_RXD_O[2]
+-    [RX_D_I] = {.num = 533,.mux = SIUL2_MSCR_MUX_MODE(2)},  // GMAC0_RXD_I[2]
+-};
+-
+-const pin_t pe13[] = {
+-    [GPIO_IDX] = {.num = CR('E', 13),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[77]
+-    [RX_D_O] = {.num = CR('E', 13),.mux = SIUL2_MSCR_MUX_MODE(6)},   // GMAC0_RXD_O[3]
+-    [RX_D_I] = {.num = 534,.mux = SIUL2_MSCR_MUX_MODE(2)},  // GMAC0_RXD_I[3]
+-};
+-
+-const pin_t pd12[] = {
+-    [GPIO_IDX] = {.num = CR('D', 12),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[60]
+-    [MDC_O] = {.num = CR('D', 12),.mux = SIUL2_MSCR_MUX_MODE(1)},    // GMAC0_MDC
+-};
+-
+-const pin_t pd13[] = {
+-    [GPIO_IDX] = {.num = CR('D', 13),.mux = SIUL2_MSCR_MUX_MODE(0)},    // GPIO[61]
+-    [MDIO_O] = {.num = CR('D', 13),.mux = SIUL2_MSCR_MUX_MODE(1)},  // GMAC0_MDO
+-    [MDIO_I] = {.num = 527,.mux = SIUL2_MSCR_MUX_MODE(2)},  // GMAC0_MDI
+-};
+-
+-#endif
+-
+-const pin_t ph01[] = {
+-    [GPIO_IDX] = {.num = CR('H', 1),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[113]
+-    [TX_D_O] = {.num = CR('H', 1),.mux = SIUL2_MSCR_MUX_MODE(2)},   // PFE_MAC2_TXD_O[1]
+-};
+-
+-const pin_t ph02[] = {
+-    [GPIO_IDX] = {.num = CR('H', 2),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[114]
+-    [TX_D_O] = {.num = CR('H', 2),.mux = SIUL2_MSCR_MUX_MODE(2)},   // PFE_MAC2_TXD_O[2]
+-};
+-
+-const pin_t ph03[] = {
+-    [GPIO_IDX] = {.num = CR('H', 3),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[115]
+-    [TX_D_O] = {.num = CR('H', 3),.mux = SIUL2_MSCR_MUX_MODE(2)},   // PFE_MAC2_TXD_O[3]
+-};
+-
+-const pin_t ph04[] = {
+-    [GPIO_IDX] = {.num = CR('H', 4),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[116]
+-    [RX_CLK_O] = {.num = CR('H', 4),.mux = SIUL2_MSCR_MUX_MODE(4)}, // PFE_MAC2_RX_CLK_O
+-    [RX_CLK_I] = {.num = 879,.mux = SIUL2_MSCR_MUX_MODE(3)},    // PFE_MAC2_RX_CLK_I
+-};
+-
+-const pin_t ph05[] = {
+-    [GPIO_IDX] = {.num = CR('H', 5),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[117]
+-    [RX_DV_O] = {.num = CR('H', 5),.mux = SIUL2_MSCR_MUX_MODE(3)},  // PFE_MAC2_RXDV_O
+-    [RX_DV_I] = {.num = 885,.mux = SIUL2_MSCR_MUX_MODE(3)}, // PFE_MAC2_RXDV_I
+-};
+-
+-const pin_t ph06[] = {
+-    [GPIO_IDX] = {.num = CR('H', 6),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[118]
+-    [RX_D_O] = {.num = CR('H', 6),.mux = SIUL2_MSCR_MUX_MODE(4)},   // PFE_MAC2_RXD_O[0]
+-    [RX_D_I] = {.num = 881,.mux = SIUL2_MSCR_MUX_MODE(3)},  // PFE_MAC2_RXD_I[0]
+-};
+-
+-const pin_t ph07[] = {
+-    [GPIO_IDX] = {.num = CR('H', 7),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[119]
+-    [RX_D_O] = {.num = CR('H', 7),.mux = SIUL2_MSCR_MUX_MODE(4)},   // PFE_MAC2_RXD_O[1]
+-    [RX_D_I] = {.num = 882,.mux = SIUL2_MSCR_MUX_MODE(3)},  // PFE_MAC2_RXD_I[1]
+-};
+-
+-const pin_t ph08[] = {
+-    [GPIO_IDX] = {.num = CR('H', 8),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[120]
+-    [RX_D_O] = {.num = CR('H', 8),.mux = SIUL2_MSCR_MUX_MODE(5)},   // PFE_MAC2_RXD_O[2]
+-    [RX_D_I] = {.num = 883,.mux = SIUL2_MSCR_MUX_MODE(3)},  // PFE_MAC2_RXD_I[2]
+-};
+-
+-const pin_t ph09[] = {
+-    [GPIO_IDX] = {.num = CR('H', 9),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[121]
+-    [RX_D_O] = {.num = CR('H', 9),.mux = SIUL2_MSCR_MUX_MODE(3)},   // PFE_MAC2_RXD_O[3]
+-    [RX_D_I] = {.num = 884,.mux = SIUL2_MSCR_MUX_MODE(3)},  // PFE_MAC2_RXD_I[3]
+-};
+-
+-const pin_t ph10[] = {
+-    [GPIO_IDX] = {.num = CR('H', 10),.mux = SIUL2_MSCR_MUX_MODE(0)},    // GPIO[122]
+-    [TX_CLK_O] = {.num = CR('H', 10),.mux = SIUL2_MSCR_MUX_MODE(2)},    // PFE_MAC2_TX_CLK_O
+-};
+-
+-const pin_t pe14[] = {
+-    [GPIO_IDX] = {.num = CR('E', 14),.mux = SIUL2_MSCR_MUX_MODE(0)},    // GPIO[78]
+-    [TX_EN_O] = {.num = CR('E', 14),.mux = SIUL2_MSCR_MUX_MODE(2)}, // PFE_MAC2_TX_EN_O
+-};
+-
+-const pin_t pe15[] = {
+-    [GPIO_IDX] = {.num = CR('E', 15),.mux = SIUL2_MSCR_MUX_MODE(0)},    // GPIO[79]
+-    [MDIO_O] = {.num = CR('E', 15),.mux = SIUL2_MSCR_MUX_MODE(2)},  // PFE_MAC2_MDO
+-    [MDIO_I] = {.num = 877,.mux = SIUL2_MSCR_MUX_MODE(3)},  // PFE_MAC2_MDI
+-};
+-
+-const pin_t pf02[] = {
+-    [GPIO_IDX] = {.num = CR('F', 2),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[82]
+-    [MDC_O] = {.num = CR('F', 2),.mux = SIUL2_MSCR_MUX_MODE(2)},    // PFE_MAC2_MDC
+-};
+-
+-PIN(clkout0, CR('F', 3), // GPIO[83]
+-        PIN_OUTPUT(CLKOUT0, CR('F', 3), 1) // CLKOUT0
+-);
+-
+-static const pin_t pf04[] = {
+-    [GPIO_IDX] = {.num = CR('F', 4),.mux = SIUL2_MSCR_MUX_MODE(0)}, // GPIO[84]
+-    [CLKOUT1] = {.num = CR('F', 4),.mux = SIUL2_MSCR_MUX_MODE(1)},    // CLKOUT1
+-};
+-
+-PIN(pj00, CR('J', 0), // GPIO[144]
+-        PIN_OUTPUT(TX_D_O, CR('J', 0), 2) // PFE_MAC2_TXD_O[0]
+-);
+-
+-PIN(pa13, CR('A', 13),                       // GPIO[13]
+-        PIN_OUTPUT(DSPI_SCK, CR('A', 13), 1) // DSPI0_SCK
+-);
+-
+-PIN(pa14, CR('A', 14),               // GPIO[14]
+-        PIN_INOUT(DSPI_SIN, CR('A', 14), 0, 982, 2)  // DSPI0_SIN
+-);
+-
+-PIN(pa15, CR('A', 15),                        // GPIO[15]
+-        PIN_OUTPUT(DSPI_SOUT, CR('A', 15), 1) // DSPI0_SOUT
+-);
+-
+-PIN(pb09, CR('B', 9),                       // GPIO[25]
+-        PIN_OUTPUT(DSPI_PCS, CR('B', 9), 5) // DSPI0_PCS1
+-);
+-
+-PIN(pb10, CR('B', 10),                       // GPIO[26]
+-        PIN_OUTPUT(DSPI_PCS, CR('B', 10), 3) // DSPI0_PCS2
+-);
+-
+-PIN(eirq12, CR('B', 15),               // GPIO[31]
+-        PIN_INPUT(1, 922, 2)  // EIRQ[12]
+-);
+-
+-/*
+- * USB/ULPI
+- */
+-
+-PIN(usb_ulpi_clk, CR('L', 8), // GPIO[184]
+-        PIN_INPUT(1, 895, 2)
+-);
+-
+-PIN(usb_ulpi_dir, CR('L', 9), // GPIO[185]
+-        PIN_INPUT(1, 904, 2)
+-);
+-
+-PIN(usb_ulpi_stp, CR('L', 10), // GPIO[186]
+-        PIN_OUTPUT(1, 186, 1)
+-);
+-
+-PIN(usb_ulpi_nxt, CR('L', 11), // GPIO[187]
+-        PIN_INPUT(1, 905, 2)
+-);
+-
+-PIN(usb_ulpi_data0, CR('D', 14),   // GPIO[62]
+-        PIN_INOUT(1, CR('D', 14), 1, 896, 2)
+-);
+-
+-PIN(usb_ulpi_data1, CR('D', 15),   // GPIO[63]
+-        PIN_INOUT(1, CR('D', 15), 1, 897, 2)
+-);
+-
+-PIN(usb_ulpi_data2, CR('E', 0),   // GPIO[64]
+-        PIN_INOUT(1, CR('E', 0), 1, 898, 2)
+-);
+-
+-PIN(usb_ulpi_data3, CR('E', 1),   // GPIO[65]
+-        PIN_INOUT(1, CR('E', 1), 1, 899, 2)
+-);
+-
+-PIN(usb_ulpi_data4, CR('L', 12),   // GPIO[188]
+-        PIN_INOUT(1, CR('L', 12), 1, 900, 2)
+-);
+-
+-PIN(usb_ulpi_data5, CR('L', 13),   // GPIO[189]
+-        PIN_INOUT(1, CR('L', 13), 1, 901, 2)
+-);
+-
+-PIN(usb_ulpi_data6, CR('L', 13),   // GPIO[189]
+-        PIN_INOUT(1, CR('L', 13), 1, 902, 2)
+-);
+-
+-PIN(usb_ulpi_data7, CR('H', 0),   // GPIO[112]
+-        PIN_INOUT(1, CR('H', 0), 1, 903, 2)
+-);
+-
+-/*
+- * QSPI A
+- */
+-
+-PIN(qspi_a_cs0, CR('G', 4),
+-        PIN_OUTPUT(1, CR('G', 4), 1)
+-);
+-
+-PIN(qspi_a_ck, CR('G', 0),
+-        PIN_OUTPUT(1, CR('G', 0), 1)
+-);
+-
+-PIN(qspi_a_dqs, CR('F', 13),
+-        PIN_INOUT(1, CR('F', 13), 1, 548, 2)
+-);
+-
+-PIN(qspi_a_int, CR('F', 14),
+-        PIN_INPUT(1, 549, 2)
+-);
+-
+-PIN(qspi_a_data0, CR('F', 5),
+-        PIN_INOUT(1, CR('F', 5), 1, 540, 2)
+-);
+-
+-PIN(qspi_a_data1, CR('F', 6),
+-        PIN_INOUT(1, CR('F', 6), 1, 541, 2)
+-);
+-
+-PIN(qspi_a_data2, CR('F', 7),
+-        PIN_INOUT(1, CR('F', 7), 1, 542, 2)
+-);
+-
+-PIN(qspi_a_data3, CR('F', 8),
+-        PIN_INOUT(1, CR('F', 8), 1, 543, 2)
+-);
+-
+-PIN(qspi_a_data4, CR('F', 9),
+-        PIN_INOUT(1, CR('F', 9), 1, 544, 2)
+-);
+-
+-PIN(qspi_a_data5, CR('F', 10),
+-        PIN_INOUT(1, CR('F', 10), 1, 545, 2)
+-);
+-
+-PIN(qspi_a_data6, CR('F', 11),
+-        PIN_INOUT(1, CR('F', 11), 1, 546, 2)
+-);
+-
+-PIN(qspi_a_data7, CR('F', 12),
+-        PIN_INOUT(1, CR('F', 12), 1, 547, 2)
+-);
+-
+-static const pin_t *clkout1 = pf04;
+-
+-static const dspi_cr_t __maybe_unused dspi[] = {
+-        [0] = { .sck = pa13, .sin = pa14, .sout = pa15,
+-                .cs = { pb09, pb10, 0 }},
+-};
+-
+-static const usb_cr_t __maybe_unused usb = {
+-        .clk = usb_ulpi_clk,
+-        .dir = usb_ulpi_dir,
+-        .stp = usb_ulpi_stp,
+-        .nxt = usb_ulpi_nxt,
+-        .data = {
+-                [0] = usb_ulpi_data0,
+-                [1] = usb_ulpi_data1,
+-                [2] = usb_ulpi_data2,
+-                [3] = usb_ulpi_data3,
+-                [4] = usb_ulpi_data4,
+-                [5] = usb_ulpi_data5,
+-                [6] = usb_ulpi_data6,
+-                [7] = usb_ulpi_data7,
+-        },
+-};
+-
+-static const can_cr_t can[] = {
+-        [0] = { .tx = pb11, .rx = pb12 },
+-        [1] = { .tx = pb13, .rx = pb14 },
+-};
+-
+-const lin_cr_t uart0 = { .tx=pc09, .rx=pc10 };
+-
+-const mac_rgmii_t mac[] = {
+-#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
+-//        [PFEMAC1] = { .tx_clk = pe02, .tx_en = pe03,
+-//                .tx_d = { pe04, pe05, pe06, pe07 },
+-//                .rx_clk = pe08, .rx_dv  = pe09,
+-//                .rx_d = { pe10, pe11, pe12, pe13 },
+-//                .mdc = pd12, .mdio = pd13 },
+-#else
+-        [GMAC0] = { .tx_clk = pe02, .tx_en = pe03,
+-                .tx_d = { pe04, pe05, pe06, pe07 },
+-                .rx_clk = pe08, .rx_dv  = pe09,
+-                .rx_d = { pe10, pe11, pe12, pe13 },
+-                .mdc = pd12, .mdio = pd13 },
+-#endif
+-        [PFEMAC2] = { .tx_clk = ph10, .tx_en = pe14,
+-                .tx_d = { pj00, ph01, ph02, ph03 },
+-                .rx_clk = ph04, .rx_dv  = ph05,
+-                .rx_d = { ph06, ph07, ph08, ph09 },
+-                .mdc = pf02, .mdio = pe15 },
+-};
+-
+-const i2c_cr_t i2c_bus[] = {
+-        [0] = { .sda=pb00, .sclk=pb01 }, // I2C0
+-        [1] = { .sda=pb04, .sclk=pb03 }, // I2C1
+-        [2] = { .sda=pb06, .sclk=pb05 }, // I2C2
+-        [3] = { .sda=pc01, .sclk=pc02 }, // I2C4
+-};
+-
+-const qspi_cr_t qspi_bus = {
+-        .ck = {{qspi_a_ck,0},{0,0}},
+-        .data = {qspi_a_data0,
+-                qspi_a_data1,
+-                qspi_a_data2,
+-                qspi_a_data3,
+-                qspi_a_data4,
+-                qspi_a_data5,
+-                qspi_a_data6,
+-                qspi_a_data7},
+-        .cs = {qspi_a_cs0, 0},
+-        .dqs = qspi_a_dqs,
+-        .irq = qspi_a_int,
+-};
+-
+-void set_platform_cr(void)
+-{
+-    set_cr(clkout0[CLKOUT0].num,
+-           (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_OBE_EN |
+-                   clkout0[CLKOUT0].mux));
+-    set_cr(clkout1[CLKOUT1].num,
+-           (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_OBE_EN |
+-                   clkout1[CLKOUT1].mux));
+-
+-    set_cr(eirq12[0].num, (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_IBE_EN));
+-    set_cr(eirq12[1].num, eirq12[1].mux);
+-
+-//    set_dspi_cr(&dspi[0]);
+-
+-    set_usb_cr(&usb);
+-
+-#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
+-    set_rgmii_cr(&mac[PFEMAC1]);
+-#endif
+-    set_rgmii_cr(&mac[PFEMAC2]);
+-
+-    set_can_cr(&can[0]);
+-    set_can_cr(&can[1]);
+-
+-    //set_qspi_cr(&qspi_bus);
+-}
+-
+-/* *INDENT-OFF* */
+-/******************************************************************************
+- * Local Variables:
+- * mode: C
+- * c-indent-level: 4
+- * c-basic-offset: 4
+- * tab-width: 4
+- * indent-tabs-mode: nil
+- * End:
+- * kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;
+- * vim: set expandtab filetype=c:
+- * vi: set et tabstop=4 shiftwidth=4: */
+diff --git a/board/microsys/s32g274asbc/pincfg.h b/board/microsys/s32g274asbc/pincfg.h
+deleted file mode 100644
+index fc030bc92ece..000000000000
+--- a/board/microsys/s32g274asbc/pincfg.h
++++ /dev/null
+@@ -1,47 +0,0 @@
+-/* -*-C-*- */
+-/* SPDX-License-Identifier:    GPL-2.0+ */
+-/*
+- * Copyright (C) 2020 MicroSys Electronics GmbH
+- *
+- */
+-
+-#ifndef PINCFG_H
+-#define PINCFG_H
+-
+-#include <common.h>
+-
+-#include "pinctl.h"
+-
+-#ifdef __cplusplus
+-extern "C" {
+-#endif
+-
+-#define GMAC0   0
+-#define PFEMAC1 0
+-#define PFEMAC2 1
+-#define NUM_I2C_BUS 4
+-
+-    extern const i2c_cr_t i2c_bus[];
+-    extern const mac_rgmii_t mac[];
+-    extern const lin_cr_t uart0;
+-
+-    extern void set_platform_cr(void);
+-
+-
+-#ifdef __cplusplus
+-}                               /* extern "C" */
+-#endif
+-#endif                          /* PINCFG_H */
+-
+-/* *INDENT-OFF* */
+-/******************************************************************************
+- * Local Variables:
+- * mode: C
+- * c-indent-level: 4
+- * c-basic-offset: 4
+- * tab-width: 4
+- * indent-tabs-mode: nil
+- * End:
+- * kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;
+- * vim: set expandtab filetype=c:
+- * vi: set et tabstop=4 shiftwidth=4: */
+diff --git a/board/microsys/s32g274asbc/s32-gen1.cfg b/board/microsys/s32g274asbc/s32-gen1.cfg
+deleted file mode 100644
+index 1e46ab87ba7b..000000000000
+--- a/board/microsys/s32g274asbc/s32-gen1.cfg
++++ /dev/null
+@@ -1,12 +0,0 @@
+-/*
+- * Copyright 2016,2019 NXP
+- * SPDX-License-Identifier:	GPL-2.0+
+- *
+- * Refer to docs/README.s32gen1image for more details about how
+- * to configure the s32gen1image Device Configuration Data.
+- */
+-
+- NOP
+- NOP
+- NOP
+- NOP
+diff --git a/board/microsys/s32g274asbc/s32g274asbc.c b/board/microsys/s32g274asbc/s32g274asbc.c
+index 79d1c3f74b8b..5e0f4c838462 100644
+--- a/board/microsys/s32g274asbc/s32g274asbc.c
++++ b/board/microsys/s32g274asbc/s32g274asbc.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright 2018-2020 NXP
+- * Copyright (C) 2020 MicroSys Electronics GmbH
++ * Copyright (C) 2020-2021 MicroSys Electronics GmbH
+  */
+ #include <asm/arch/soc.h>
+ #include <board_common.h>
+@@ -11,7 +11,6 @@
+ #include <phy.h>
+ #include <i2c.h>
+
+-#include "pincfg.h"
+ #include "mpxs32g274a.h"
+
+ int last_stage_init(void)
+@@ -20,13 +19,6 @@ int last_stage_init(void)
+     struct phy_device *phy;
+     struct mii_dev *bus;
+
+-//    eth = eth_get_dev_by_name("eth_eqos");
+-//    bus = miiphy_get_dev_by_name("eth_eqos");
+-//    if (eth && bus) {
+-//        phy = phy_connect(bus, 0x03, eth, PHY_INTERFACE_MODE_RGMII);
+-//        if (phy) phy_config(phy);
+-//    }
+-
+     eth = eth_get_dev_by_name("eth_pfeng");
+     bus = miiphy_get_dev_by_name("pfeng_emac_2");
+     if (eth && bus) {
+@@ -36,16 +28,5 @@ int last_stage_init(void)
+         if (phy) phy_config(phy);
+     }
+
+-    /*
+-     * Configure CLKOUT0
+-     *
+-     * CLKOUT0 is routed to SJA1124_CLK. Because FXOSC runs at 40MHz we need to
+-     * divide it by 4. This leads to a register setup value of 3; real divider
+-     * is then DIV+1.
+-     */
+-//    puts("Setting up CLKOUT0\n");
+-//    //mux_source_clk_config(MC_CGM0_BASE_ADDR, 1, MC_CGM_MUXn_CSC_SEL_FXOSC);
+-//    mux_div_clk_config(MC_CGM0_BASE_ADDR, 1, 0, 3);
+-
+     return 0;
+ }
+diff --git a/configs/s32g274asbc_defconfig b/configs/s32g274asbc_defconfig
+index a4b73bfd2ef1..f19f65a12724 100644
+--- a/configs/s32g274asbc_defconfig
++++ b/configs/s32g274asbc_defconfig
+@@ -167,15 +167,15 @@ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_BOOTSTAGE_STASH_ADDR=0
+ CONFIG_IDENT_STRING=""
+ CONFIG_BAUDRATE=115200
++CONFIG_NXP_S32G2XX=y
+ # CONFIG_TARGET_S32V234CCPB is not set
+ # CONFIG_TARGET_S32V234EVB is not set
+ # CONFIG_TARGET_S32V234PCIE is not set
+ # CONFIG_TARGET_MPXS32V234 is not set
+ # CONFIG_TARGET_CAMPPS32V2 is not set
+ CONFIG_TARGET_S32G274ASBC=y
++# CONFIG_TARGET_S32G274ASBC2 is not set
+ # CONFIG_TARGET_S32G274ACPCIS is not set
+-# CONFIG_TARGET_S32V344EVB is not set
+-# CONFIG_TARGET_S32V344SIM is not set
+ # CONFIG_TARGET_S32R45EVB is not set
+ # CONFIG_TARGET_S32R45SIM is not set
+ # CONFIG_TARGET_S32R45EMU is not set
+@@ -188,19 +188,20 @@ CONFIG_TARGET_S32G274ASBC=y
+ CONFIG_S32_LPDDR4=y
+ # CONFIG_S32_DDR3 is not set
+ CONFIG_DDR_HANDSHAKE_AT_RESET=y
++CONFIG_S32_GEN1=y
++CONFIG_EXTRA_KERNEL_BOOT_ARGS=""
+ # CONFIG_PHY_RGMII_DIRECT_CONNECTED is not set
++# CONFIG_S32_SKIP_RELOC is not set
+ # CONFIG_XEN_SUPPORT is not set
+-CONFIG_S32_GEN1=y
++CONFIG_SYS_DATA_BASE=0x34000000
++CONFIG_SYS_MEM_SIZE=0x00800000
++CONFIG_S32GEN1_DRAM_INLINE_ECC=y
+ CONFIG_SYS_ERRATUM_ERR050543=y
+ CONFIG_UBOOT_SRAM_FOOTPRINT=0x200000
+ CONFIG_DTB_SRAM_ADDR=0x34090000
+ CONFIG_S32_STANDALONE_BOOT_FLOW=y
+ # CONFIG_S32_ATF_BOOT_FLOW is not set
+-CONFIG_S32GEN1_HWCONFIG="pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0"
+-CONFIG_SYS_DATA_BASE=0x34000000
+-CONFIG_SYS_MEM_SIZE=0x00800000
+-CONFIG_EXTRA_KERNEL_BOOT_ARGS=""
+-# CONFIG_S32_SKIP_RELOC is not set
++CONFIG_S32GEN1_HWCONFIG="pcie0:mode=rc,clock=ext,fmhz=100;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=both"
+ CONFIG_SYS_DDR_SIZE=0x10000000
+
+ #
+@@ -496,10 +497,12 @@ CONFIG_CMD_LOADS=y
+ CONFIG_CMD_MMC=y
+ # CONFIG_CMD_MMC_RPMB is not set
+ # CONFIG_CMD_MMC_SWRITE is not set
++# CONFIG_CMD_MTD is not set
++# CONFIG_CMD_ONENAND is not set
+ # CONFIG_CMD_OSD is not set
+ CONFIG_CMD_PART=y
+ CONFIG_CMD_PCI=y
+-# CONFIG_CMD_PINMUX is not set
++CONFIG_CMD_PINMUX=y
+ # CONFIG_CMD_POWEROFF is not set
+ # CONFIG_CMD_READ is not set
+ # CONFIG_CMD_SATA is not set
+@@ -615,6 +618,7 @@ CONFIG_CMD_FAT=y
+ CONFIG_CMD_FS_GENERIC=y
+ # CONFIG_CMD_FS_UUID is not set
+ # CONFIG_CMD_JFFS2 is not set
++# CONFIG_CMD_MTDPARTS is not set
+ CONFIG_MTDIDS_DEFAULT=""
+ CONFIG_MTDPARTS_DEFAULT=""
+ # CONFIG_CMD_REISER is not set
+@@ -813,6 +817,7 @@ CONFIG_ARM_PSCI_FW=y
+ # CONFIG_CMD_PCA953X is not set
+ # CONFIG_PCF8575_GPIO is not set
+ # CONFIG_ROCKCHIP_GPIO is not set
++CONFIG_S32_GPIO=y
+ # CONFIG_XILINX_GPIO is not set
+ # CONFIG_CMD_TCA642X is not set
+ # CONFIG_TEGRA_GPIO is not set
+@@ -921,9 +926,9 @@ CONFIG_MMC_HW_PARTITIONING=y
+ # CONFIG_SPL_MMC_IO_VOLTAGE is not set
+ # CONFIG_MMC_HS400_ES_SUPPORT is not set
+ # CONFIG_SPL_MMC_HS400_ES_SUPPORT is not set
+-# CONFIG_MMC_HS400_SUPPORT is not set
++CONFIG_MMC_HS400_SUPPORT=y
+ # CONFIG_SPL_MMC_HS400_SUPPORT is not set
+-# CONFIG_MMC_HS200_SUPPORT is not set
++CONFIG_MMC_HS200_SUPPORT=y
+ # CONFIG_SPL_MMC_HS200_SUPPORT is not set
+ CONFIG_MMC_VERBOSE=y
+ # CONFIG_MMC_TRACE is not set
+@@ -941,11 +946,14 @@ CONFIG_FSL_USDHC=y
+ #
+ # MTD Support
+ #
+-# CONFIG_MTD is not set
+-# CONFIG_DM_MTD is not set
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
+ # CONFIG_MTD_NOR_FLASH is not set
+ # CONFIG_FLASH_CFI_DRIVER is not set
++# CONFIG_CFI_FLASH is not set
++# CONFIG_ALTERA_QSPI is not set
+ # CONFIG_MTD_RAW_NAND is not set
++# CONFIG_MTD_SPI_NAND is not set
+
+ #
+ # SPI Flash Support
+@@ -971,6 +979,7 @@ CONFIG_SPI_FLASH_STMICRO=y
+ # CONFIG_SPI_FLASH_XMC is not set
+ CONFIG_SPI_FLASH_USE_4K_SECTORS=y
+ # CONFIG_SPI_FLASH_DATAFLASH is not set
++# CONFIG_SPI_FLASH_MTD is not set
+ # CONFIG_SPL_SPI_FLASH_MTD is not set
+
+ #
+@@ -1083,13 +1092,26 @@ CONFIG_SERDES_S32GEN1=y
+ CONFIG_PHY=y
+ # CONFIG_NOP_PHY is not set
+ # CONFIG_MSM8916_USB_PHY is not set
+-# CONFIG_SAF1508BET_USB_PHY is not set
++CONFIG_SAF1508BET_USB_PHY=y
+ # CONFIG_MVEBU_COMPHY_SUPPORT is not set
+
+ #
+ # Pin controllers
+ #
+-# CONFIG_PINCTRL is not set
++CONFIG_PINCTRL=y
++CONFIG_PINCTRL_FULL=y
++CONFIG_PINCTRL_GENERIC=y
++CONFIG_PINMUX=y
++# CONFIG_PINCONF is not set
++CONFIG_PINCONF_RECURSIVE=y
++# CONFIG_PINCTRL_AT91 is not set
++# CONFIG_PINCTRL_AT91PIO4 is not set
++# CONFIG_PINCTRL_INTEL is not set
++# CONFIG_PINCTRL_ROCKCHIP_RV1108 is not set
++# CONFIG_PINCTRL_SINGLE is not set
++# CONFIG_PINCTRL_STM32 is not set
++# CONFIG_PINCTRL_STMFX is not set
++CONFIG_PINCTRL_S32=y
+
+ #
+ # Power
+diff --git a/include/configs/s32g274asbc.h b/include/configs/s32g274asbc.h
+index ddb3a401fbe0..3f5241693049 100644
+--- a/include/configs/s32g274asbc.h
++++ b/include/configs/s32g274asbc.h
+@@ -35,10 +35,9 @@
+  */
+ #include <configs/s32g274a.h>
+
+-/*
+- * Disable inline ECC feature.
+- */
+-#undef CONFIG_S32GEN1_DRAM_INLINE_ECC
++#ifndef CONFIG_S32GEN1_DRAM_INLINE_ECC
++#define CONFIG_S32GEN1_DRAM_INLINE_ECC
++#endif
+
+ #undef LOADADDR
+ #define LOADADDR 0x90000000
+--
+2.30.2
+

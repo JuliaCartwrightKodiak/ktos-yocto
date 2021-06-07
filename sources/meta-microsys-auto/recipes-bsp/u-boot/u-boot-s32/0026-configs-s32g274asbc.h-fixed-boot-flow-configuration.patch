@@ -1,0 +1,60 @@
+From 81cf3ec2d4f0a3fd5009a18f51090c707274794f Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Thu, 15 Apr 2021 10:43:37 +0200
+Subject: [PATCH 26/38] configs: s32g274asbc.h: fixed boot flow configuration
+Organization: MicroSys Electronics GmbH
+
+CONFIG_S32_ATF_BOOT_FLOW and CONFIG_S32_ATF_BOOT_FLOW shall not be
+defined at the same time.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ include/configs/s32g274asbc.h | 25 +++++--------------------
+ 1 file changed, 5 insertions(+), 20 deletions(-)
+
+diff --git a/include/configs/s32g274asbc.h b/include/configs/s32g274asbc.h
+index 06394c7ca7dd..89ede000218e 100644
+--- a/include/configs/s32g274asbc.h
++++ b/include/configs/s32g274asbc.h
+@@ -8,33 +8,18 @@
+
+ #define CONFIG_BOARD_EARLY_INIT_R
+
+-/*
+- * In secure boot scenarios, there would be a Trusted Firmware running at
+- * EL3 just before U-Boot, while the latter runs at EL2. Running at EL2
+- * prevents U-Boot from configuring certain registers, in particular
+- * secure GICv3 registers.
+- * While the secure boot feature and the Trusted Firmware are still in
+- * development, this choice will enable the U-Boot and firmware developer
+- * switch between EL3 and EL2 execution levels. The default is EL3, to
+- * allow for backward compatibility with existing, stable configurations.
+- *
+- * CONFIG_S32_RUN_AT_EL3: U-Boot runs at EL3 (no TF-A)
+- *     U-Boot runs at EL3 as the first component in the boot flow.
+- *     This boot flow does not accommodate an ARM Trusted Firmware
+- *     (TF-A) for this platform.
+- *
+- * CONFIG_S32_RUN_AT_EL2: U-Boot runs at EL2 (with TF-A)
+- *     U-Boot runs at EL2 and is started by the ARM Trusted Firmware
+- *     (TF-A) for this platform.
+- */
+ #ifdef CONFIG_TFABOOT
+-#define CONFIG_S32_RUN_AT_EL3
++#define CONFIG_S32_ATF_BOOT_FLOW
+ #else
+ #ifndef CONFIG_S32_STANDALONE_BOOT_FLOW
+ #define CONFIG_S32_STANDALONE_BOOT_FLOW
+ #endif
+ #endif
+
++#ifdef CONFIG_S32_ATF_BOOT_FLOW
++#undef CONFIG_S32_STANDALONE_BOOT_FLOW
++#endif
++
+ /*
+  * This include has to be here after the definition of
+  * CONFIG_S32_STANDALONE_BOOT_FLOW or CONFIG_S32_RUN_AT_EL3.
+--
+2.30.2
+

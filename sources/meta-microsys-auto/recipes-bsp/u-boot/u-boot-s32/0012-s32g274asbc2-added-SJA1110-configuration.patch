@@ -1,0 +1,59 @@
+From 6d9d03c3fe2660262de759a228028f5f2e9b02f1 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 24 Mar 2021 08:55:39 +0100
+Subject: [PATCH 12/38] s32g274asbc2: added SJA1110 configuration
+Organization: MicroSys Electronics GmbH
+
+Depending on the SerDes1 configuration U-Boot configures now
+a different firmware image for the SJA1110.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/mpxs32g274a/mpxs32g274a.c | 2 ++
+ include/configs/s32g274asbc.h            | 5 +++--
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.c b/board/microsys/mpxs32g274a/mpxs32g274a.c
+index 375445c2b742..0e3bafeb10d3 100644
+--- a/board/microsys/mpxs32g274a/mpxs32g274a.c
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.c
+@@ -127,9 +127,11 @@ static void check_kconfig(const serdes_t serdes_mode)
+     switch (serdes_mode) {
+     case SERDES_2G5:
+         env_set("kconfig", "#conf@s32g274asbc2_2g5");
++        env_set("sja1110_cfg", "sja1110.firmware_name=sja1110_uc_2g5.bin");
+         break;
+     default:
+         env_set("kconfig", "#conf@s32g274asbc2_m2");
++        env_set("sja1110_cfg", "sja1110.firmware_name=sja1110_uc_m2.bin");
+         break;
+     }
+ }
+diff --git a/include/configs/s32g274asbc.h b/include/configs/s32g274asbc.h
+index 6240390a3803..06394c7ca7dd 100644
+--- a/include/configs/s32g274asbc.h
++++ b/include/configs/s32g274asbc.h
+@@ -107,10 +107,10 @@
+         CONFIG_EXTRA_KERNEL_BOOT_ARGS "\0"
+
+ #define BOOTFIT_SD \
+-    "bootfit_sd=setenv bootargs ${bootargs_sd}; ext4load mmc ${mmcdev}:1 ${loadaddr} boot/fitImage.itb; bootm ${loadaddr}${kconfig}\0"
++    "bootfit_sd=setenv bootargs ${bootargs_sd} ${sja1110_cfg}; ext4load mmc ${mmcdev}:1 ${loadaddr} boot/fitImage.itb; bootm ${loadaddr}${kconfig}\0"
+
+ #define BOOTIMG_SD \
+-    "bootimg_sd=setenv bootargs ${bootargs_sd}; ext4load mmc ${mmcdev}:1 ${loadaddr} boot/Image; ext4load mmc ${mmcdev}:1 ${fdt_addr} boot/s32g274sbc.dtb; bootm ${loadaddr} - ${fdt_addr}\0"
++    "bootimg_sd=setenv bootargs ${bootargs_sd} ${sja1110_cfg}; ext4load mmc ${mmcdev}:1 ${loadaddr} boot/Image; ext4load mmc ${mmcdev}:1 ${fdt_addr} boot/s32g274sbc.dtb; bootm ${loadaddr} - ${fdt_addr}\0"
+
+ #undef CONFIG_EXTRA_ENV_SETTINGS
+
+@@ -147,6 +147,7 @@
+     "mmcdev=" __stringify(CONFIG_SYS_MMC_ENV_DEV) "\0"            \
+     "mmcroot=/dev/mmcblk0p1 rootwait rw\0"                        \
+     "console=ttyLF" __stringify(CONFIG_FSL_LINFLEX_MODULE) "\0"   \
++    "sja1110_cfg=sja1110.firmware_name=sja1110_uc.bin\0"           \
+     BOOTARGS_SD                                                   \
+     BOOTFIT_SD \
+     BOOTIMG_SD \
+--
+2.30.2
+

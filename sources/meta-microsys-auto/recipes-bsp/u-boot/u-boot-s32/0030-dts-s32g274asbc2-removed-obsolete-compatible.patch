@@ -1,0 +1,31 @@
+From 7fe5e02e6429c868a210d0a9fde62569a5d6d51a Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 19 Apr 2021 14:43:15 +0200
+Subject: [PATCH 30/38] dts: s32g274asbc2: removed obsolete compatible
+Organization: MicroSys Electronics GmbH
+
+The compatible property has been moved the include file.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/dts/s32g274asbc2.dts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/dts/s32g274asbc2.dts b/arch/arm/dts/s32g274asbc2.dts
+index a7340e4335a8..082f6c7144b4 100644
+--- a/arch/arm/dts/s32g274asbc2.dts
++++ b/arch/arm/dts/s32g274asbc2.dts
+@@ -14,8 +14,8 @@
+
+ / {
+     model = "MicroSys S32G274ASBC2";
+-    compatible = "fsl,s32g274-simu", "fsl,s32g274", "fsl,s32gen1",
+-                 "arm,vexpress,v2p-aarch64", "arm,vexpress";
++    /*compatible = "fsl,s32g274-simu", "fsl,s32g274", "fsl,s32gen1",
++                 "arm,vexpress,v2p-aarch64", "arm,vexpress";*/
+
+ 	aliases {
+ 		usb0 = &usbotg;
+--
+2.30.2
+

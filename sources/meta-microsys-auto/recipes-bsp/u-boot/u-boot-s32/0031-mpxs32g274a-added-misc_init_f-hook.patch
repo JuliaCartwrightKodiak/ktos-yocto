@@ -1,0 +1,32 @@
+From ef64240fbc064e7e0903171a477f4c680bd6854b Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 19 Apr 2021 14:46:41 +0200
+Subject: [PATCH 31/38] mpxs32g274a: added misc_init_f hook
+Organization: MicroSys Electronics GmbH
+
+Reserved for future use.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/mpxs32g274a/mpxs32g274a.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.c b/board/microsys/mpxs32g274a/mpxs32g274a.c
+index 05a1c4c6f828..0a5397bfe816 100644
+--- a/board/microsys/mpxs32g274a/mpxs32g274a.c
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.c
+@@ -334,6 +334,11 @@ int board_early_init_r(void)
+     return 0;
+ }
+
++int misc_init_f(void)
++{
++    return 0;
++}
++
+ /*!@}*/
+
+ /* *INDENT-OFF* */
+--
+2.30.2
+

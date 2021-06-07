@@ -1,0 +1,67 @@
+From ee4f402ae3cdb205053b674d2797d2f00c96bc42 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 09:32:38 +0200
+Subject: [PATCH 32/38] dts: fsl-s32g274a.dtsi: fixed clocks for SBC2
+Organization: MicroSys Electronics GmbH
+
+Clocks for SBC2 should only be present when compiling for
+SBC2.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/dts/fsl-s32g274a.dtsi | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32g274a.dtsi b/arch/arm/dts/fsl-s32g274a.dtsi
+index 8ad40c6efa6f..11928ac5cc3b 100644
+--- a/arch/arm/dts/fsl-s32g274a.dtsi
++++ b/arch/arm/dts/fsl-s32g274a.dtsi
+@@ -146,8 +146,10 @@
+ 			/* PFE0 */
+ 			<&clks S32G274A_SCMI_CLK_PFE0_RX_SGMII>,
+ 			<&clks S32G274A_SCMI_CLK_PFE0_TX_SGMII>,
++#ifdef CONFIG_TARGET_S32G274ASBC2
+             <&clks S32G274A_CLK_SERDES1_LANE1_CDR>,
+             <&clks S32G274A_CLK_SERDES1_LANE1_TX>,
++#endif
+ 			<&clks S32G274A_SCMI_CLK_PFE0_RX_RGMII>,
+ 			<&clks S32G274A_SCMI_CLK_PFE0_TX_RGMII>,
+ 			/* PFE1 */
+@@ -162,7 +164,9 @@
+ 			<&clks S32G274A_SCMI_CLK_PFE2_TX_RGMII>;
+ 		clock-names = "pe",
+ 			"mac0_rx_sgmii", "mac0_tx_sgmii",
++#ifdef CONFIG_TARGET_S32G274ASBC2
+             "mac0_rx1_sgmii", "mac0_tx1_sgmii",
++#endif
+ 			"mac0_rx_rgmii", "mac0_tx_rgmii",
+ 			"mac1_rx_sgmii", "mac1_tx_sgmii",
+ 			"mac1_rx_rgmii", "mac1_tx_rgmii",
+@@ -330,13 +334,19 @@
+ 		 <&clks S32GEN1_SCMI_CLK_GMAC0_RX_RGMII>,
+ 		 <&clks S32GEN1_SCMI_CLK_GMAC0_TX_RGMII>,
+ 		 <&clks S32GEN1_SCMI_CLK_GMAC0_TS_RGMII>,
+-		 <&clks S32GEN1_SCMI_CLK_GMAC0_AXI>,
+-		 <&clks S32G274A_CLK_SERDES0_LANE1_CDR>,
+-         <&clks S32G274A_CLK_SERDES0_LANE1_TX>;
++		 <&clks S32GEN1_SCMI_CLK_GMAC0_AXI>
++#ifdef CONFIG_TARGET_S32G274ASBC2
++		 ,<&clks S32G274A_CLK_SERDES0_LANE1_CDR>,
++         <&clks S32G274A_CLK_SERDES0_LANE1_TX>
++#endif
++         ;
+ 	clock-names = "rx_sgmii", "tx_sgmii", "ts_sgmii",
+ 		      "rx_rgmii", "tx_rgmii", "ts_rgmii",
+-		      "axi",
+-		      "rx1_sgmii", "tx1_sgmii";
++		      "axi"
++#ifdef CONFIG_TARGET_S32G274ASBC2
++		      ,"rx1_sgmii", "tx1_sgmii"
++#endif
++		      ;
+ 	pinctrl-0 = <&pinctrl0_gmac0 &pinctrl0_gmac0_mdio>;
+ 	pinctrl-1 = <&pinctrl0_gmac0_mdio>;
+ 	pinctrl-names = "gmac_rgmii", "gmac_sgmii";
+--
+2.30.2
+

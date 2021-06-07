@@ -1,0 +1,30 @@
+From a66513ad9808dc3939f31cf70d9f5fbd8c932cfa Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 17 Mar 2021 10:28:47 +0100
+Subject: [PATCH 10/19] spi-nor: fsl-quadspi: fixed build issue
+Organization: MicroSys Electronics GmbH
+
+Fixed build issue when CONFIG_SPI_FLASH_MACRONIX has not been
+selected.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/mtd/spi-nor/fsl-quadspi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/spi-nor/fsl-quadspi.c b/drivers/mtd/spi-nor/fsl-quadspi.c
+index 994b2ac7311a..6711ca8f74b3 100644
+--- a/drivers/mtd/spi-nor/fsl-quadspi.c
++++ b/drivers/mtd/spi-nor/fsl-quadspi.c
+@@ -912,7 +912,7 @@ static int fsl_qspi_probe(struct platform_device *pdev)
+ 		goto irq_failed;
+ 	}
+
+-#ifdef CONFIG_SOC_S32GEN1
++#if defined(CONFIG_SOC_S32GEN1) && defined(CONFIG_SPI_FLASH_MACRONIX)
+ 	reset_bootrom_settings(q);
+ #endif
+
+--
+2.30.2
+

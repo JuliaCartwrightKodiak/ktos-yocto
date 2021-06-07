@@ -1,0 +1,55 @@
+From 73cc3ce2f3315c8c13ddfbba7ced4100de931460 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 19 Apr 2021 14:40:04 +0200
+Subject: [PATCH 28/38] s32g274a: fix for QSPI on rev. 1
+Organization: MicroSys Electronics GmbH
+
+Added patch for QSPI clock to max. 133MHz on rev. 1 CPUs.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/cmu.c | 3 ++-
+ tools/s32gen1image.c                  | 6 ++++--
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c b/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c
+index 298650b8c92e..589d5e104436 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c
+@@ -517,7 +517,8 @@ static int do_verify_clocks(cmd_tbl_t *cmdtp, int flag, int argc,
+ 	puts("-----------|------------------|-----------|----------");
+ 	puts("|--------------------\n");
+
+-#if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB)
++#if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB) \
++    || defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ASBC2) || defined(CONFIG_TARGET_S32G274ACPCIS)
+ 	if (is_s32gen1_soc_rev1())
+ 		cmu_blocks[17].mon_freq = 133.33;
+ #endif
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index 31253bfaf419..d00ff290fb89 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -187,7 +187,8 @@ static struct qspi_params s32g2xx_qspi_conf = {
+ };
+
+ #if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
+-	defined(CONFIG_TARGET_S32G274AEVB)
++	defined(CONFIG_TARGET_S32G274AEVB) \
++	|| defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ASBC2) || defined(CONFIG_TARGET_S32G274ACPCIS)
+ static void adjust_qspi_params(struct qspi_params *qspi_params)
+ {
+ 	qspi_params->dllcr = 0x8280000c;
+@@ -205,7 +206,8 @@ static void s32gen1_set_qspi_params(struct qspi_params *qspi_params)
+ {
+ 	memcpy(qspi_params, &s32g2xx_qspi_conf, sizeof(*qspi_params));
+ #if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
+-	defined(CONFIG_TARGET_S32G274AEVB)
++	defined(CONFIG_TARGET_S32G274AEVB) \
++	|| defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ASBC2) || defined(CONFIG_TARGET_S32G274ACPCIS)
+ 	adjust_qspi_params(qspi_params);
+ #endif
+ }
+--
+2.30.2
+

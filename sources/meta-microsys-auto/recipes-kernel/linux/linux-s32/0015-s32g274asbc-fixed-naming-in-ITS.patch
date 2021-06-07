@@ -1,0 +1,60 @@
+From 42f9337045ebf7a945c6957a45cf0a715044cef7 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 10:27:53 +0200
+Subject: [PATCH 15/19] s32g274asbc: fixed naming in ITS
+Organization: MicroSys Electronics GmbH
+
+Fixed naming in kernel-s32g274asbc.its. It is now conform
+with the naming for s32g274asbc2.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ kernel-s32g274asbc.its | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/kernel-s32g274asbc.its b/kernel-s32g274asbc.its
+index c2260fb6ce47..af70a3ce7341 100644
+--- a/kernel-s32g274asbc.its
++++ b/kernel-s32g274asbc.its
+@@ -5,8 +5,8 @@
+         #address-cells = <1>;
+
+         images {
+-                kernel@1 {
+-                        description = "Linux kernel";
++                kernel@s32g274asbc {
++                        description = "Linux kernel S32G274ASBC";
+                         data = /incbin/("arch/arm64/boot/Image");
+                         type = "kernel";
+                         arch = "arm64";
+@@ -18,8 +18,8 @@
+                                 algo = "sha1";
+                         };
+                 };
+-                fdt@microsys_s32g274asbc.dtb {
+-                        description = "Flattened Device Tree blob";
++                fdt@s32g274asbc {
++                        description = "Flattened Device Tree S32G274ASBC";
+                         data = /incbin/("arch/arm64/boot/dts/freescale/s32g274asbc.dtb");
+                         type = "flat_dt";
+                         arch = "arm64";
+@@ -32,11 +32,11 @@
+         };
+
+         configurations {
+-                default = "conf@microsys_s32g274asbc.dtb";
+-                conf@microsys_s32g274asbc.dtb {
+-			        description = "1 Linux kernel, FDT blob";
+-			        kernel = "kernel@1";
+-			        fdt = "fdt@microsys_s32g274asbc.dtb";
++                default = "conf@s32g274asbc";
++                conf@s32g274asbc {
++                    description = "S32G274ASBC";
++                    kernel = "kernel@s32g274asbc";
++                    fdt = "fdt@s32g274asbc";
+                     hash@1 {
+                             algo = "sha1";
+                     };
+--
+2.30.2
+

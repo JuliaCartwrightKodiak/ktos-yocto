@@ -1,0 +1,41 @@
+From 4f63e853522d8885629b0c5dc19e52664f496ecd Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Tue, 13 Apr 2021 15:13:40 +0200
+Subject: [PATCH 18/38] i2c: mxc_i2c: added delay until clock is stable
+Organization: MicroSys Electronics GmbH
+
+Added a delay of one millisecond until the clock is stable.
+
+Note: this delay solves the problem that the board cannot boot
+from QSPI, because the watchdog of the PMIC VR5510 bites and the
+board hangs in a watchdog-reset loop.
+
+Background: the bootloader needs to stop the PMIC watchdog as early
+as possible. This can only be done via writing a message to the VR5510
+via I2C-bus. But if the execution flow reaches the first access to
+the I2C-bus too early the I2C-controller hardware is not ready with its initialization.
+As a consequence the access hangs and the watchdog is never stopped.
+This is specially the case when booting from QSPI. Booting from SD-card needs
+a little bit longer and the problem remains undiscovered.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/i2c/mxc_i2c.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/i2c/mxc_i2c.c b/drivers/i2c/mxc_i2c.c
+index 17de555f07be..bb75ef46f7c5 100644
+--- a/drivers/i2c/mxc_i2c.c
++++ b/drivers/i2c/mxc_i2c.c
+@@ -933,6 +933,8 @@ static int mxc_i2c_probe(struct udevice *bus)
+ 		return ret;
+ #endif
+
++    udelay(1*1000); // wait until clock is stable
++
+ 	/*
+ 	 * See Documentation/devicetree/bindings/i2c/i2c-imx.txt
+ 	 * Use gpio to force bus idle when necessary.
+--
+2.30.2
+

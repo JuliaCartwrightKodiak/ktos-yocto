@@ -1,0 +1,422 @@
+From ed6534d86155151edced8b3f76cfd3ac1abbe9f1 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 17 Mar 2021 10:24:53 +0100
+Subject: [PATCH 06/19] hwmon: lm90: added IRQ support
+Organization: MicroSys Electronics GmbH
+
+Implemented IRQ support for LM90 sensors.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/hwmon/lm90.c | 235 +++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 216 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/hwmon/lm90.c b/drivers/hwmon/lm90.c
+index 9b3c9f390ef8..94a22480e6e2 100644
+--- a/drivers/hwmon/lm90.c
++++ b/drivers/hwmon/lm90.c
+@@ -3,6 +3,7 @@
+  * lm90.c - Part of lm_sensors, Linux kernel modules for hardware
+  *          monitoring
+  * Copyright (C) 2003-2010  Jean Delvare <jdelvare@suse.de>
++ * Copyright (C) 2019-2020 MicroSys Electronics GmbH <kay.potthoff@microsys.de>
+  *
+  * Based on the lm83 driver. The LM90 is a sensor chip made by National
+  * Semiconductor. It reports up to two temperatures (its own plus up to
+@@ -71,6 +72,36 @@
+  * concern all supported chipsets, unless mentioned otherwise.
+  */
+
++/*
++ * MicroSys Electronics GmbH
++ *
++ * Added support for interrupt handling of the two IRQs ALERT# and THERM#.
++ * Additionally, added support to configure extended temperature range for TMP451
++ * via devicetree. Anyway, the limits for local temperature and remote temperature
++ * can now be configured via devicetree, too.
++ *
++ * A sample entry:
++ *
++ *   temp-sensor@4c {
++ *       compatible = "ti,tmp451";
++ *       reg = <0x4c>;
++ *
++ *       interrupt-parent = <&gpio43>;
++ *       interrupts = <0 IRQ_TYPE_EDGE_FALLING>, // TMP451.ALERT#
++ *                    <1 IRQ_TYPE_EDGE_FALLING>; // TMP451.THERM#
++ *
++ *       extended-mode; // switch to extended temperature range from [-64..191]
++ *       #limit-cells = <4>; // four values: <min max critical hysteresis/offset>
++ *       limits = <0x00 0xff 0xa4 0x8b>, // Local Temp.:  <-64 191 100 75>
++ *                <0x00 0xff 0xb8 0x00>; // Remote Temp.: <-64 191 120 0>
++ *   };
++ *
++ * Note that the values for 'limits' are raw values. Depending on 'extended-mode'
++ * switch these raw values need to be adjusted accordingly. E.g. a value of 0x00
++ * in default mode means 0 degC while in extended temperature range this is interpreted
++ * as -64 degC.
++ */
++
+ #include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/slab.h>
+@@ -83,6 +114,10 @@
+ #include <linux/sysfs.h>
+ #include <linux/interrupt.h>
+ #include <linux/regulator/consumer.h>
++#include <linux/of_irq.h>
++#include <linux/workqueue.h>
++#include <linux/spinlock.h>
++#include <linux/of.h>
+
+ /*
+  * Addresses to scan
+@@ -106,6 +141,11 @@ static const unsigned short normal_i2c[] = {
+ enum chips { lm90, adm1032, lm99, lm86, max6657, max6659, adt7461, max6680,
+ 	max6646, w83l771, max6696, sa56004, g781, tmp451 };
+
++/*
++ * TMP451 has two IRQ pins: THERM and ALERT
++ */
++#define LM90_MAX_IRQ 2
++
+ /*
+  * The LM90 registers
+  */
+@@ -193,6 +233,14 @@ enum chips { lm90, adm1032, lm99, lm86, max6657, max6659, adt7461, max6680,
+ #define MAX6696_STATUS2_R2OT2	(1 << 6) /* remote2 emergency limit tripped */
+ #define MAX6696_STATUS2_LOT2	(1 << 7) /* local emergency limit tripped */
+
++typedef enum {
++    temp_low = 0,
++    temp_high,
++    temp_crit,
++    temp_hyst,
++    limits_count
++} lm90_limits_t;
++
+ /*
+  * Driver data (common to all clients)
+  */
+@@ -447,6 +495,7 @@ enum lm90_temp11_reg_index {
+
+ struct lm90_data {
+ 	struct i2c_client *client;
++        struct work_struct irq_work;
+ 	u32 channel_config[4];
+ 	struct hwmon_channel_info temp_info;
+ 	const struct hwmon_channel_info *info[3];
+@@ -472,6 +521,10 @@ struct lm90_data {
+ 	s16 temp11[TEMP11_REG_NUM];
+ 	u8 temp_hyst;
+ 	u16 alarms; /* bitvector (upper 8 bits for max6695/96) */
++
++	int irq[LM90_MAX_IRQ];
++	int irq_count[LM90_MAX_IRQ];
++	spinlock_t irq_lock;
+ };
+
+ /*
+@@ -509,8 +562,11 @@ static int lm90_read_reg(struct i2c_client *client, u8 reg)
+ 	return err;
+ }
+
+-static int lm90_read16(struct i2c_client *client, u8 regh, u8 regl)
++static int lm90_read16(struct device *dev, u8 regh, u8 regl)
+ {
++        struct lm90_data *data = dev_get_drvdata(dev);
++        struct i2c_client *client = data->client;
++
+ 	int oldh, newh, l;
+
+ 	/*
+@@ -532,6 +588,7 @@ static int lm90_read16(struct i2c_client *client, u8 regh, u8 regl)
+ 	l = lm90_read_reg(client, regl);
+ 	if (l < 0)
+ 		return l;
++	if (data->kind != tmp451) {
+ 	    newh = lm90_read_reg(client, regh);
+ 	    if (newh < 0)
+ 	        return newh;
+@@ -540,6 +597,9 @@ static int lm90_read16(struct i2c_client *client, u8 regh, u8 regl)
+ 	        if (l < 0)
+ 	            return l;
+ 	    }
++	}
++	else newh = oldh;
++
+ 	return (newh << 8) | l;
+ }
+
+@@ -672,7 +732,7 @@ static int lm90_update_limits(struct device *dev)
+ 	}
+
+ 	if (data->flags & LM90_HAVE_OFFSET) {
+-		val = lm90_read16(client, LM90_REG_R_REMOTE_OFFSH,
++		val = lm90_read16(dev, LM90_REG_R_REMOTE_OFFSH,
+ 				  LM90_REG_R_REMOTE_OFFSL);
+ 		if (val < 0)
+ 			return val;
+@@ -753,7 +813,7 @@ static int lm90_update_device(struct device *dev)
+ 		data->temp8[LOCAL_HIGH] = val;
+
+ 		if (data->reg_local_ext) {
+-			val = lm90_read16(client, LM90_REG_R_LOCAL_TEMP,
++			val = lm90_read16(dev, LM90_REG_R_LOCAL_TEMP,
+ 					  data->reg_local_ext);
+ 			if (val < 0)
+ 				return val;
+@@ -764,7 +824,7 @@ static int lm90_update_device(struct device *dev)
+ 				return val;
+ 			data->temp11[LOCAL_TEMP] = val << 8;
+ 		}
+-		val = lm90_read16(client, LM90_REG_R_REMOTE_TEMPH,
++		val = lm90_read16(dev, LM90_REG_R_REMOTE_TEMPH,
+ 				  LM90_REG_R_REMOTE_TEMPL);
+ 		if (val < 0)
+ 			return val;
+@@ -780,7 +840,7 @@ static int lm90_update_device(struct device *dev)
+ 			if (val < 0)
+ 				return val;
+
+-			val = lm90_read16(client, LM90_REG_R_REMOTE_TEMPH,
++			val = lm90_read16(dev, LM90_REG_R_REMOTE_TEMPH,
+ 					  LM90_REG_R_REMOTE_TEMPL);
+ 			if (val < 0) {
+ 				lm90_select_remote_channel(data, 0);
+@@ -895,14 +955,14 @@ static u8 hyst_to_reg(long val)
+ static inline int temp_from_u8_adt7461(struct lm90_data *data, u8 val)
+ {
+ 	if (data->flags & LM90_FLAG_ADT7461_EXT)
+-		return (val - 64) * 1000;
++		return (((int)val) - 64) * 1000;
+ 	return temp_from_s8(val);
+ }
+
+ static inline int temp_from_u16_adt7461(struct lm90_data *data, u16 val)
+ {
+ 	if (data->flags & LM90_FLAG_ADT7461_EXT)
+-		return (val - 0x4000) / 64 * 250;
++		return ((int)val - 0x4000) / 64 * 250;
+ 	return temp_from_s16(val);
+ }
+
+@@ -1626,9 +1686,67 @@ static void lm90_restore_conf(void *_data)
+ 				  data->config_orig);
+ }
+
++static int lm90_set_limit(struct lm90_data *data, int index, lm90_limits_t limit, u32 val)
++{
++    int temp;
++
++    if (data->kind == adt7461 || data->kind == tmp451)
++            temp = temp_from_u8_adt7461(data, (u8) val);
++    else if (data->kind == max6646)
++        temp = temp_from_u8(val);
++    else
++        temp = temp_from_s8(val);
++
++    /* +16 degrees offset for temp2 for the LM99 */
++    if (data->kind == lm99 && index == 3)
++        temp += 16000;
++
++    if (limit == temp_crit)
++        return lm90_set_temp8(data, lm90_temp_crit_index[index], temp);
++
++    switch (index) {
++    case 0:
++        switch (limit) {
++        case temp_low:
++            return lm90_set_temp8(data, lm90_temp_min_index[index], temp);
++            break;
++        case temp_high:
++            return lm90_set_temp8(data, lm90_temp_max_index[index], temp);
++            break;
++        case temp_hyst:
++            return lm90_set_temphyst(data, temp);
++            break;
++        default:
++            break;
++        }
++        break;
++    case 1:
++    case 2:
++        switch (limit) {
++        case temp_low:
++            return lm90_set_temp11(data, lm90_temp_min_index[index], temp);
++            break;
++        case temp_high:
++            return lm90_set_temp11(data, lm90_temp_max_index[index], temp);
++            break;
++        case temp_hyst:
++            if (index == 1)
++                return lm90_set_temp11(data, REMOTE_OFFSET, temp);
++            break;
++        default:
++            break;
++        }
++        break;
++    }
++
++    return 0;
++}
++
+ static int lm90_init_client(struct i2c_client *client, struct lm90_data *data)
+ {
+ 	int config, convrate;
++	int cnt, i, j;
++	u32 limit_cells, v32;
+
+ 	convrate = lm90_read_reg(client, LM90_REG_R_CONVRATE);
+ 	if (convrate < 0)
+@@ -1647,9 +1765,41 @@ static int lm90_init_client(struct i2c_client *client, struct lm90_data *data)
+ 	lm90_set_convrate(client, data, 500); /* 500ms; 2Hz conversion rate */
+
+ 	/* Check Temperature Range Select */
+-	if (data->kind == adt7461 || data->kind == tmp451) {
+-		if (config & 0x04)
++	if (data->kind == adt7461
++	        || of_property_read_bool(client->dev.of_node, "extended-mode")) {
++	    if (config & 0x04) {
+ 	        data->flags |= LM90_FLAG_ADT7461_EXT;
++	        dev_info(&client->dev, "Extended Temperature Mode is ON\n");
++	    }
++	    else {
++	        config |= 0x04;
++	        data->flags |= LM90_FLAG_ADT7461_EXT;
++	        dev_info(&client->dev, "Extended Temperature Mode set OK\n");
++	    }
++	}
++	else {
++        dev_info(&client->dev, "Standard Temperature Mode set OK\n");
++        config &= ~0x4;
++	}
++
++	cnt = of_property_count_u32_elems(client->dev.of_node, "limits");
++	if (cnt > 0) {
++	    if (of_property_read_u32(client->dev.of_node, "#limit-cells", &limit_cells))
++	        limit_cells = limits_count; // default: <min max crit hyst>
++	    if (limit_cells > 0) {
++	        cnt /= limit_cells;
++	        if (limit_cells > limits_count) limit_cells = limits_count;
++	        for (i = 0; i < cnt; i++) {
++	            for (j = temp_low; j < limit_cells; j++) {
++	                if (of_property_read_u32_index(client->dev.of_node,
++	                        "limits",
++	                        (i*limit_cells)+j, &v32) == 0) {
++	                    lm90_set_limit(data, i, j, v32);
++	                }
++	                else break;
++	            }
++	        }
++	    }
+ 	}
+
+ 	/*
+@@ -1714,15 +1864,49 @@ static bool lm90_is_tripped(struct i2c_client *client, u16 *status)
+ 	return true;
+ }
+
+-static irqreturn_t lm90_irq_thread(int irq, void *dev_id)
++static void lm90_worker(struct work_struct *work)
+ {
+-	struct i2c_client *client = dev_id;
++    struct lm90_data *lm90;
+     u16 status;
++    int i;
++    unsigned long flags;
++
++    lm90 = container_of(work, struct lm90_data, irq_work);
++
++    lm90_is_tripped(lm90->client, &status);
++
++    spin_lock_irqsave(&lm90->irq_lock, flags);
++    for (i=0; i<LM90_MAX_IRQ; i++) {
++        if (lm90->irq_count[i]>0) {
++            lm90->irq_count[i]--;
++            break;
++        }
++    }
++    spin_unlock_irqrestore(&lm90->irq_lock, flags);
++
++    if (i<LM90_MAX_IRQ) enable_irq(lm90->irq[i]);
++}
++
++static irqreturn_t lm90_irq_thread(int irq, void *dev_id)
++{
++	struct lm90_data *lm90 = dev_id;
++	int i;
++	unsigned long flags;
++
++	disable_irq_nosync(irq);
++
++	spin_lock_irqsave(&lm90->irq_lock, flags);
++	for (i=0; i<LM90_MAX_IRQ; i++) {
++	    if (lm90->irq[i] == irq) {
++	        lm90->irq_count[i]++;
++	        break;
++	    }
++	}
++	spin_unlock_irqrestore(&lm90->irq_lock, flags);
++
++	schedule_work(&lm90->irq_work);
+
+-	if (lm90_is_tripped(client, &status))
+ 	return IRQ_HANDLED;
+-	else
+-		return IRQ_NONE;
+ }
+
+ static void lm90_remove_pec(void *dev)
+@@ -1752,6 +1936,7 @@ static int lm90_probe(struct i2c_client *client,
+ 	struct device *hwmon_dev;
+ 	struct lm90_data *data;
+ 	int err;
++	int count, irqn;
+
+ 	regulator = devm_regulator_get(dev, "vcc");
+ 	if (IS_ERR(regulator))
+@@ -1862,6 +2047,10 @@ static int lm90_probe(struct i2c_client *client,
+ 			return err;
+ 	}
+
++    snprintf(client->name, I2C_NAME_SIZE, "lm90_%d:%02x",
++                    client->adapter->nr,
++                    client->addr);
++
+ 	hwmon_dev = devm_hwmon_device_register_with_info(dev, client->name,
+ 							 data, &data->chip,
+ 							 NULL);
+@@ -1869,16 +2058,24 @@ static int lm90_probe(struct i2c_client *client,
+ 		return PTR_ERR(hwmon_dev);
+
+ 	if (client->irq) {
+-		dev_dbg(dev, "IRQ: %d\n", client->irq);
+-		err = devm_request_threaded_irq(dev, client->irq,
++        spin_lock_init(&data->irq_lock);
++	    INIT_WORK(&(data->irq_work), lm90_worker);
++		count = of_irq_count(client->dev.of_node);
++		if (count > LM90_MAX_IRQ) count = LM90_MAX_IRQ;
++		for (irqn = 0; irqn < count; irqn++) {
++		    data->irq[irqn] = of_irq_get(client->dev.of_node, irqn);
++		    data->irq_count[irqn] = 0;
++		    dev_dbg(dev, "IRQ: %d\n", data->irq[irqn]);
++		    err = devm_request_threaded_irq(dev, data->irq[irqn],
+ 		            NULL, lm90_irq_thread,
+-						IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+-						"lm90", client);
++		            IRQF_ONESHOT | IRQF_SHARED,
++		            client->name, data);
+ 		    if (err < 0) {
+-			dev_err(dev, "cannot request IRQ %d\n", client->irq);
++		        dev_err(dev, "cannot request IRQ %d\n", data->irq[irqn]);
+ 		        return err;
+ 		    }
+ 		}
++	}
+
+ 	return 0;
+ }
+--
+2.30.2
+

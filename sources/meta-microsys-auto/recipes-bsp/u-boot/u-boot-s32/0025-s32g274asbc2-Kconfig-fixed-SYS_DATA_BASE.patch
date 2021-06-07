@@ -1,0 +1,32 @@
+From 9ff4440600406b4e317d5edaa82ac035deb8b395 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Thu, 15 Apr 2021 10:42:37 +0200
+Subject: [PATCH 25/38] s32g274asbc2: Kconfig: fixed SYS_DATA_BASE
+Organization: MicroSys Electronics GmbH
+
+Fixed SYS_DATA_BASE when ATF boot flow is configured.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/s32g274asbc2/Kconfig | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/board/microsys/s32g274asbc2/Kconfig b/board/microsys/s32g274asbc2/Kconfig
+index eaab5977e13d..96f0db07556f 100644
+--- a/board/microsys/s32g274asbc2/Kconfig
++++ b/board/microsys/s32g274asbc2/Kconfig
+@@ -7,8 +7,9 @@ config SYS_VENDOR
+     default "microsys"
+
+ config SYS_DATA_BASE
+-    hex "Data Base"
+-    default 0x34000000 if TARGET_S32G274ASBC2
++    hex "Data Base" if !S32_ATF_BOOT_FLOW
++    default 0xff800000 if S32_ATF_BOOT_FLOW
++    default 0x34000000
+     help
+       U-boot data base address (normally SRAM base address)
+
+--
+2.30.2
+

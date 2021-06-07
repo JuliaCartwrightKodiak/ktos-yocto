@@ -1,0 +1,44 @@
+From fa25ee84aa4b007dd8fc238918e483cf2b595eaa Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Tue, 16 Mar 2021 14:13:34 +0100
+Subject: [PATCH 08/38] net: phy: fixed PHY detection
+Organization: MicroSys Electronics GmbH
+
+Fixed get_phy_id() to return an error when PHY ID is either
+0x00000000 or 0xffffffff.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/net/phy/phy.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/phy/phy.c b/drivers/net/phy/phy.c
+index 505312ae8d08..fb507c16bb29 100644
+--- a/drivers/net/phy/phy.c
++++ b/drivers/net/phy/phy.c
+@@ -730,7 +730,12 @@ int __weak get_phy_id(struct mii_dev *bus, int addr, int devad, u32 *phy_id)
+
+ 	*phy_id |= (phy_reg & 0xffff);
+
+-	return 0;
++	/*
++	 * Not every MDIO controller returns with an error when the access
++	 * did not succeed. To cover this we assume that a PHYID can never
++	 * be 0x00000000 or 0xffffffff:
++	 */
++	return ((*phy_id != 0) && (*phy_id != 0xffffffff)) ? 0 : -EIO;
+ }
+
+ static struct phy_device *create_phy_by_mask(struct mii_dev *bus,
+@@ -842,7 +847,7 @@ int phy_reset(struct phy_device *phydev)
+
+ #ifdef CONFIG_PHYLIB_10G
+ 	/* If it's 10G, we need to issue reset through one of the MMDs */
+-	if (is_10g_interface(phydev->interface)) {
++	if (is_10g_interface(phydev->interface) || phydev->is_c45) {
+ 		if (!phydev->mmds)
+ 			gen10g_discover_mmds(phydev);
+
+--
+2.30.2
+

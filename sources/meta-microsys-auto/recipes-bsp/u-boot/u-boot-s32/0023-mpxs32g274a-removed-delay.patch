@@ -1,0 +1,46 @@
+From 39857cc8112374fe81508d113983361b1540a369 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Thu, 15 Apr 2021 10:38:43 +0200
+Subject: [PATCH 23/38] mpxs32g274a: removed delay
+Organization: MicroSys Electronics GmbH
+
+Removed delay because PMIC initialization happens now during
+ATF-boot.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/mpxs32g274a/mpxs32g274a.c | 18 ------------------
+ 1 file changed, 18 deletions(-)
+
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.c b/board/microsys/mpxs32g274a/mpxs32g274a.c
+index c61f8c4338ab..05a1c4c6f828 100644
+--- a/board/microsys/mpxs32g274a/mpxs32g274a.c
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.c
+@@ -329,24 +329,6 @@ enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id)
+
+ int board_early_init_r(void)
+ {
+-    /*
+-     * Delay until clocks are stable.
+-     *
+-     * Note: this delay solves the problem that the board cannot boot
+-     * from QSPI, because the watchdog of the PMIC VR5510 bites and the
+-     * board hangs in a watchdog-reset loop.
+-     *
+-     * Background: the bootloader needs to stop the PMIC watchdog as early
+-     * as possible. This can only be done via writing a message to the VR5510
+-     * via I2C-bus. But if the execution flow reaches the first access to
+-     * the I2C-bus too early the I2C-controller hardware is not ready.
+-     * As a consequence the access hangs and the watchdog is never stopped.
+-     * This is specially the case when booting from QSPI. Booting from SD-card needs
+-     * a little bit longer and the problem remains undiscovered.
+-     */
+-
+-    udelay(10*1000);
+-
+     printf("Board: Rev. %d\n", get_board_rev());
+
+     return 0;
+--
+2.30.2
+

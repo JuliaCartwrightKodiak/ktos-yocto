@@ -1,0 +1,84 @@
+From 86de8f10c9a997d87a68cf52340f97b76fc99b27 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 10:31:57 +0200
+Subject: [PATCH 16/19] dts: s32g274asbc: added PFE1 pin configuration
+Organization: MicroSys Electronics GmbH
+
+Added pin configuration for PFE1.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm64/boot/dts/freescale/s32g274asbc.dts | 43 +++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/s32g274asbc.dts b/arch/arm64/boot/dts/freescale/s32g274asbc.dts
+index e7d6539cf368..ea8b01a93dbe 100644
+--- a/arch/arm64/boot/dts/freescale/s32g274asbc.dts
++++ b/arch/arm64/boot/dts/freescale/s32g274asbc.dts
+@@ -291,6 +291,7 @@
+
+ &pfe0_if {
+     status = "okay";
++    fsl,pfeng-hif-channel = <0>;
+     phy-mode = "sgmii";
+     fixed-link {
+         full-duplex;
+@@ -691,6 +692,30 @@
+             >;
+         };
+
++        pinctrl0_pfe1_mdio: pfe1mdiocgrp {
++            fsl,pins = <
++                S32_G274_PAD_PD12__PFE1_MDC
++                S32_G274_PAD_PD13__PFE1_MDIO_OUT
++            >;
++        };
++
++        pinctrl0_pfe1_rgmii: pfe1rgmiicgrp {
++            fsl,pins = <
++                S32_G274_PAD_PE2__PFE1_TXCLK_OUT
++                S32_G274_PAD_PE3__PFE1_TX_EN_OUT
++                S32_G274_PAD_PE4__PFE1_TX_D0_OUT
++                S32_G274_PAD_PE5__PFE1_TX_D1_OUT
++                S32_G274_PAD_PE6__PFE1_TX_D2_OUT
++                S32_G274_PAD_PE7__PFE1_TX_D3_OUT
++                S32_G274_PAD_PE8__PFE1_RXCLK_OUT
++                S32_G274_PAD_PE9__PFE1_RX_DV_OUT
++                S32_G274_PAD_PE10__PFE1_RX_D0_OUT
++                S32_G274_PAD_PE11__PFE1_RX_D1_OUT
++                S32_G274_PAD_PE12__PFE1_RX_D2_OUT
++                S32_G274_PAD_PE13__PFE1_RX_D3_OUT
++            >;
++        };
++
+         pinctrl0_i2c0: i2c0grp {
+             fsl,pins = <
+                 S32_GEN1_PAD_PB00__I2C0_SDA_OUT
+@@ -899,6 +924,24 @@
+             >;
+         };
+
++        pinctrl1_pfe1_mdio: pfe1mdiocgrp {
++            fsl,pins = <
++                S32_G274_PAD_PD13__PFE1_MDIO_IN
++            >;
++        };
++
++        pinctrl1_pfe1_rgmii: pfe1rgmiicgrp {
++            fsl,pins = <
++                S32_G274_PAD_PE2__PFE1_TXCLK_IN
++                S32_G274_PAD_PE8__PFE1_RXCLK_IN
++                S32_G274_PAD_PE9__PFE1_RX_DV_IN
++                S32_G274_PAD_PE10__PFE1_RX_D0_IN
++                S32_G274_PAD_PE11__PFE1_RX_D1_IN
++                S32_G274_PAD_PE12__PFE1_RX_D2_IN
++                S32_G274_PAD_PE13__PFE1_RX_D3_IN
++            >;
++        };
++
+         pinctrl1_i2c1: i2c1grp {
+             fsl,pins = <
+                 S32_GEN1_PAD_PB04__I2C1_SDA_IN
+--
+2.30.2
+

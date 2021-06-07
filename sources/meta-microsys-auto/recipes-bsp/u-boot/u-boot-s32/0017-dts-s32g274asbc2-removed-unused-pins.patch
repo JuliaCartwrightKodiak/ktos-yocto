@@ -1,0 +1,36 @@
+From c476622b867fea70a8dd2d0988c8901e162b77cf Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Tue, 13 Apr 2021 14:11:54 +0200
+Subject: [PATCH 17/38] dts: s32g274asbc2: removed unused pins
+Organization: MicroSys Electronics GmbH
+
+Disabled initialization of not connected pins at QSPI controller.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/dts/s32g274asbc2.dts | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm/dts/s32g274asbc2.dts b/arch/arm/dts/s32g274asbc2.dts
+index 55156abfadea..a7340e4335a8 100644
+--- a/arch/arm/dts/s32g274asbc2.dts
++++ b/arch/arm/dts/s32g274asbc2.dts
+@@ -302,11 +302,11 @@
+                     PF12_MSCR_S32G2XX PF12_QSPI_DATA_A7_CFG
+                     PF13_MSCR_S32G2XX PF13_QSPI_DQS_A_CFG
+                     PG00_MSCR_S32G2XX PG00_QSPI_CLK_A_CFG
+-                    PG01_MSCR_S32G2XX PG01_QSPI_CLK_A_b_CFG
+-                    PG02_MSCR_S32G2XX PG02_QSPI_CLK_2A_CFG
+-                    PG03_MSCR_S32G2XX PG03_QSPI_CLK_2A_b_CFG
++                    //PG01_MSCR_S32G2XX PG01_QSPI_CLK_A_b_CFG
++                    //PG02_MSCR_S32G2XX PG02_QSPI_CLK_2A_CFG
++                    //PG03_MSCR_S32G2XX PG03_QSPI_CLK_2A_b_CFG
+                     PG04_MSCR_S32G2XX PG04_QSPI_CS_A0
+-                    PG05_MSCR_S32G2XX PG05_QSPI_CS_A1
++                    //PG05_MSCR_S32G2XX PG05_QSPI_CS_A1
+                     QSPI_DATA0_A_IMCR PF05_QSPI_DATA_A0_IN
+                     QSPI_DATA1_A_IMCR PF06_QSPI_DATA_A1_IN
+                     QSPI_DATA2_A_IMCR PF07_QSPI_DATA_A2_IN
+--
+2.30.2
+

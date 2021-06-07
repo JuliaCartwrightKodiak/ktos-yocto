@@ -1,0 +1,13 @@
+.repo
+build_*
+nxp-setup-alb.sh
+downloads
+sstate-cache
+sources/meta-alb
+sources/meta-freescale
+sources/meta-linaro
+sources/meta-openembedded
+sources/meta-qoriq
+sources/meta-security
+sources/meta-virtualization
+sources/poky

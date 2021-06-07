@@ -1,0 +1,87 @@
+From 99308b4871de38c9d4d7348f31990248f4f6e58e Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 19 Apr 2021 14:42:07 +0200
+Subject: [PATCH 29/38] mpxs32g274a: fixes for boot with ATF
+Organization: MicroSys Electronics GmbH
+
+Fixes for booting with ATF bootloader.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/s32g274asbc2/Makefile |  6 ++++--
+ include/configs/s32g274asbc.h        | 16 +++++++++++++++-
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/board/microsys/s32g274asbc2/Makefile b/board/microsys/s32g274asbc2/Makefile
+index e30fc883869e..ed738ead9e5d 100644
+--- a/board/microsys/s32g274asbc2/Makefile
++++ b/board/microsys/s32g274asbc2/Makefile
+@@ -12,11 +12,12 @@ MPXS32G274A_COMMON_OBJ += mpxs32g274a.o
+ NXP_S32_PATH = ../../freescale/s32-gen1
+ NXP_S32_OBJ = $(addprefix $(NXP_S32_PATH)/, \
+                 ddr_density.o ddrss_cfg.o imem_cfg.o ddr_init.o ddr_utils.o)
+-NXP_S32_OBJ += $(addprefix $(NXP_S32_PATH)/s32g274a/, \
+-                 ddrc_cfg.o dmem_cfg.o dq_swap_cfg.o phy_cfg.o pie_cfg.o)
+ NXP_S32_OBJ += $(addprefix $(NXP_S32_PATH)/s32g274a/rev2/, \
+                  ddrc_cfg_rev2.o dmem_cfg_rev2.o phy_cfg_rev2.o pie_cfg_rev2.o)
+
++STANDALONE_BOOT += $(addprefix $(NXP_S32_PATH)/s32g274a/, \
++                     ddrc_cfg.o dmem_cfg.o dq_swap_cfg.o phy_cfg.o pie_cfg.o)
++
+ ccflags-$(CONFIG_S32_GEN1) += -Iarch/$(ARCH)/cpu/armv8/s32
+ ccflags-$(CONFIG_S32_GEN1) += -Iboard/freescale/s32-gen1
+ ccflags-$(CONFIG_S32_GEN1) += -Idrivers/clk/s32/include
+@@ -32,6 +33,7 @@ endif
+ obj-$(CONFIG_NETDEVICES) += $(MPXS32G274A_PATH)/eth.o
+
+ obj-$(CONFIG_TARGET_S32G274ASBC2) += $(S32G274ASBC_OBJ) $(NXP_S32_OBJ) s32g274asbc2.o
++obj-$(CONFIG_S32_STANDALONE_BOOT_FLOW) += $(STANDALONE_BOOT)
+
+ ifneq ($(filter y,$(CONFIG_TARGET_S32G274ASBC2)),)
+ obj-$(CONFIG_SYS_FSL_DDRSS) += $(addprefix $(MPXS32G274A_PATH)/, $(MPXS32G274A_COMMON_OBJ))
+diff --git a/include/configs/s32g274asbc.h b/include/configs/s32g274asbc.h
+index 89ede000218e..ddb3a401fbe0 100644
+--- a/include/configs/s32g274asbc.h
++++ b/include/configs/s32g274asbc.h
+@@ -7,6 +7,7 @@
+ #define __S32G274ASBC_H
+
+ #define CONFIG_BOARD_EARLY_INIT_R
++#define CONFIG_MISC_INIT_F
+
+ #ifdef CONFIG_TFABOOT
+ #define CONFIG_S32_ATF_BOOT_FLOW
+@@ -16,16 +17,29 @@
+ #endif
+ #endif
+
++/*
++ * CONFIG_S32_ATF_BOOT_FLOW and CONFIG_S32_STANDALONE_BOOT_FLOW are
++ * mutual exclusive.
++ */
+ #ifdef CONFIG_S32_ATF_BOOT_FLOW
+ #undef CONFIG_S32_STANDALONE_BOOT_FLOW
+ #endif
+
++#ifdef CONFIG_S32_STANDALONE_BOOT_FLOW
++#undef CONFIG_S32_ATF_BOOT_FLOW
++#endif
++
+ /*
+  * This include has to be here after the definition of
+- * CONFIG_S32_STANDALONE_BOOT_FLOW or CONFIG_S32_RUN_AT_EL3.
++ * CONFIG_S32_STANDALONE_BOOT_FLOW or CONFIG_S32_ATF_BOOT_FLOW.
+  */
+ #include <configs/s32g274a.h>
+
++/*
++ * Disable inline ECC feature.
++ */
++#undef CONFIG_S32GEN1_DRAM_INLINE_ECC
++
+ #undef LOADADDR
+ #define LOADADDR 0x90000000
+
+--
+2.30.2
+

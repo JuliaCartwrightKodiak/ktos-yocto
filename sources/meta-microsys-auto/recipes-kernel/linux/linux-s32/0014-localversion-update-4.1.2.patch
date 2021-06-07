@@ -1,0 +1,23 @@
+From 508c1232dc248c67c4a264b76fe873f363093ee8 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 12 Apr 2021 11:22:18 +0200
+Subject: [PATCH 14/19] localversion: update 4.1.2
+Organization: MicroSys Electronics GmbH
+
+Update to version 4.1.2
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ localversion-microsys | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/localversion-microsys b/localversion-microsys
+index d05396e6763e..e252488016b9 100644
+--- a/localversion-microsys
++++ b/localversion-microsys
+@@ -1 +1 @@
+--4.1
++-4.1.2
+--
+2.30.2
+

@@ -1,0 +1,147 @@
+From 48dc18cec3cd7c03e7682e19dd15f8f927eda197 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 09:37:23 +0200
+Subject: [PATCH 33/38] mpxs32g274a: fixed DIP switch handling
+Organization: MicroSys Electronics GmbH
+
+Implemented DIP switch handling for SBC rev. 1
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/mpxs32g274a/mpxs32g274a.c | 71 ++++++++++++++++++------
+ 1 file changed, 53 insertions(+), 18 deletions(-)
+
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.c b/board/microsys/mpxs32g274a/mpxs32g274a.c
+index 0a5397bfe816..378799aa8b93 100644
+--- a/board/microsys/mpxs32g274a/mpxs32g274a.c
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.c
+@@ -22,7 +22,6 @@
+ #include <dm/uclass.h>
+ #include <hwconfig.h>
+
+-#include "pincfg.h"
+ #include "board_common.h"
+ #include "mpxs32g274a.h"
+
+@@ -56,12 +55,6 @@ void setup_iomux_uart(void)
+ #endif
+ }
+
+-void setup_iomux_i2c(void)
+-{
+-    for (int i=0; i<NUM_I2C_BUS; i++)
+-        set_i2c_cr(&i2c_bus[i]);
+-}
+-
+ static const char* bmode_str(const uint8_t bmode)
+ {
+     switch (bmode) {
+@@ -112,16 +105,6 @@ static int set_serdes_sel(const serdes_t serdes_mode)
+     return 0;
+ }
+
+-static int set_eeprom_dip(const uchar reg)
+-{
+-    struct udevice *dev = NULL;
+-    if (i2c_get_chip_for_busnum(0, 0x4d, 1, &dev)==0) {
+-        dm_i2c_write(dev, 0, &reg, 1);
+-    }
+-
+-    return 0;
+-}
+-
+ static void check_kconfig(const serdes_t serdes_mode)
+ {
+     switch (serdes_mode) {
+@@ -138,6 +121,20 @@ static void check_kconfig(const serdes_t serdes_mode)
+
+ #endif
+
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2) || CONFIG_IS_ENABLED(CARRIER_CRXS32G)
++
++static int set_eeprom_dip(const uchar reg)
++{
++    struct udevice *dev = NULL;
++    if (i2c_get_chip_for_busnum(0, 0x4d, 1, &dev)==0) {
++        dm_i2c_write(dev, 0, &reg, 1);
++    }
++
++    return 0;
++}
++
++#endif
++
+ uchar get_eeprom_dip(const int verbose)
+ {
+     static uchar reg = 0xff;
+@@ -183,7 +180,7 @@ enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
+
+     fmhz = (reg & BIT(id)) ? CLK_100MHZ : CLK_125MHZ;
+
+-#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2) || CONFIG_IS_ENABLED(CARRIER_CRXS32G)
+
+     if (id == 0) {
+
+@@ -202,6 +199,10 @@ enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
+         }
+     }
+
++#endif
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++
+     if (id == 1) {
+
+         const enum serdes_clock_fmhz current_fmhz = fmhz;
+@@ -227,6 +228,25 @@ enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
+             do_reset(NULL, 0, 0, NULL);
+         }
+     }
++#elif CONFIG_IS_ENABLED(CARRIER_CRXS32G)
++
++    if (id == 1) {
++
++        const enum serdes_clock_fmhz current_fmhz = fmhz;
++
++        if (fmhz != CLK_125MHZ) {
++            fmhz = CLK_125MHZ;
++            reg |= BIT(id);
++            set_eeprom_dip(reg);
++            printf("SerDes%d clocking has changed from %dMHz to %dMHz!\n",
++                    id,
++                    current_fmhz==CLK_100MHZ ? 100:125,
++                            fmhz==CLK_100MHZ ? 100:125);
++            puts("Performing necessary reset ...\n");
++            do_reset(NULL, 0, 0, NULL);
++        }
++    }
++
+ #endif
+
+     printf("PCIe%d clock %dMHz\n", id, fmhz==CLK_100MHZ ? 100 : 125);
+@@ -281,6 +301,21 @@ enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id)
+         check_kconfig(serdes_mode);
+         set_serdes_sel(serdes_mode);
+     }
++#elif CONFIG_IS_ENABLED(CARRIER_CRXS32G)
++
++    if (id == 0) {
++        if (devtype & SGMII)
++            devtype &= ~SGMII;
++    }
++
++    if (id == 1) {
++        if (devtype & PCIE_RC)
++            devtype &= ~PCIE_RC;
++
++        if (devtype & PCIE_EP)
++            devtype &= ~PCIE_EP;
++    }
++
+ #endif
+
+     //printf("devtype = 0x%02x\n", devtype);
+--
+2.30.2
+

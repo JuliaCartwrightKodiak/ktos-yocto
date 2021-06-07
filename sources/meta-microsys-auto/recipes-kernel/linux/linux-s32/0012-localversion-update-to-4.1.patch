@@ -1,0 +1,24 @@
+From a22b79a9aae3b2956cbccce4a43104763673ff86 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 17 Mar 2021 10:31:58 +0100
+Subject: [PATCH 12/19] localversion: update to 4.1
+Organization: MicroSys Electronics GmbH
+
+Update to version 4.1 with support for BSP28.0.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ localversion-microsys | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 localversion-microsys
+
+diff --git a/localversion-microsys b/localversion-microsys
+new file mode 100644
+index 000000000000..d05396e6763e
+--- /dev/null
++++ b/localversion-microsys
+@@ -0,0 +1 @@
++-4.1
+--
+2.30.2
+

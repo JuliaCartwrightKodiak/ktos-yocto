@@ -1,0 +1,1673 @@
+From bc754fd0f824ab9af30c95e271bcc7aec4301c8a Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Tue, 16 Mar 2021 13:38:12 +0100
+Subject: [PATCH 01/38] mpxs32g274a: added module support
+Organization: MicroSys Electronics GmbH
+
+Added support for MPXS32G274A.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/mpxs32g274a/board_common.h    |  33 ++
+ board/microsys/mpxs32g274a/common.c          |  89 +++++
+ board/microsys/mpxs32g274a/dq_swap_cfg.c     |  75 ++++
+ board/microsys/mpxs32g274a/eth.c             | 398 +++++++++++++++++++
+ board/microsys/mpxs32g274a/mpxs32g274a.c     | 345 ++++++++++++++++
+ board/microsys/mpxs32g274a/mpxs32g274a.h     |  58 +++
+ board/microsys/mpxs32g274a/pinctl.c          | 254 ++++++++++++
+ board/microsys/mpxs32g274a/pinctl.h          | 160 ++++++++
+ board/microsys/mpxs32g274a/s32g274a.c        | 149 +++++++
+ board/microsys/mpxs32g274a/s32g274a_common.h |  17 +
+ 10 files changed, 1578 insertions(+)
+ create mode 100644 board/microsys/mpxs32g274a/board_common.h
+ create mode 100644 board/microsys/mpxs32g274a/common.c
+ create mode 100644 board/microsys/mpxs32g274a/dq_swap_cfg.c
+ create mode 100644 board/microsys/mpxs32g274a/eth.c
+ create mode 100644 board/microsys/mpxs32g274a/mpxs32g274a.c
+ create mode 100644 board/microsys/mpxs32g274a/mpxs32g274a.h
+ create mode 100644 board/microsys/mpxs32g274a/pinctl.c
+ create mode 100644 board/microsys/mpxs32g274a/pinctl.h
+ create mode 100644 board/microsys/mpxs32g274a/s32g274a.c
+ create mode 100644 board/microsys/mpxs32g274a/s32g274a_common.h
+
+diff --git a/board/microsys/mpxs32g274a/board_common.h b/board/microsys/mpxs32g274a/board_common.h
+new file mode 100644
+index 000000000000..ca8fbefc0786
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/board_common.h
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright 2018-2020 NXP
++ * Copyright (C) 2020-2021 MicroSys Electronics GmbH
++ */
++
++#ifndef __S32_GEN1_BOARD_COMMON_H__
++#define __S32_GEN1_BOARD_COMMON_H__
++
++#include <config.h>
++
++void setup_iomux_i2c(void);
++void setup_iomux_sdhc(void);
++void setup_iomux_uart(void);
++
++#ifdef CONFIG_FSL_DSPI
++void setup_iomux_dspi(void);
++#endif
++
++#if defined(CONFIG_NXP_S32G2XX)
++void setup_iomux_uart0(void);
++#endif
++
++#if CONFIG_IS_ENABLED(NETDEVICES)
++void ft_enet_fixup(void *fdt);
++u32 s32ccgmac_cfg_get_mode(void);
++#endif
++
++#if defined(CONFIG_SAF1508BET_USB_PHY)
++void setup_iomux_usb(void);
++#endif
++
++#endif /* __S32_GEN1_BOARD_COMMON_H__ */
+diff --git a/board/microsys/mpxs32g274a/common.c b/board/microsys/mpxs32g274a/common.c
+new file mode 100644
+index 000000000000..1167e75f3a85
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/common.c
+@@ -0,0 +1,89 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2017-2020 NXP
++ * Copyright (C) 2020-2021 MicroSys Electronics GmbH
++ */
++
++#include <common.h>
++#include <asm/io.h>
++#include <asm/arch/imx-regs.h>
++#include <asm/arch/clock.h>
++#include <asm/arch/soc.h>
++#include <fdt_support.h>
++#include <linux/libfdt.h>
++#include <miiphy.h>
++#include <asm/arch/s32-gen1/ncore.h>
++#include <asm/arch/siul-s32r45.h>
++
++#include "board_common.h"
++
++DECLARE_GLOBAL_DATA_PTR;
++
++static void mscm_init(void)
++{
++	struct mscm_ir *mscmir = (struct mscm_ir *)MSCM_BASE_ADDR;
++	int i;
++
++	for (i = 0; i < MSCM_IRSPRC_NUM; i++)
++		writew(MSCM_IRSPRC_CPn_EN, &mscmir->irsprc[i]);
++}
++
++int board_phy_config(struct phy_device *phydev)
++{
++	if (phydev->drv->config)
++		phydev->drv->config(phydev);
++
++	return 0;
++}
++
++int board_early_init_f(void)
++{
++	mscm_init();
++	setup_iomux_uart();
++
++	return 0;
++}
++
++int board_init(void)
++{
++	/* address of boot parameters */
++	gd->bd->bi_boot_params = CONFIG_SYS_FSL_DRAM_SIZE1 + 0x100;
++
++	return 0;
++}
++
++int checkboard(void)
++{
++	return 0;
++}
++
++#if defined(CONFIG_OF_FDT) && defined(CONFIG_OF_BOARD_SETUP)
++int ft_board_setup(void *blob, bd_t *bd)
++{
++	ft_cpu_setup(blob, bd);
++
++#if CONFIG_IS_ENABLED(NETDEVICES)
++	ft_enet_fixup(blob);
++#endif
++
++	return 0;
++}
++#endif /* defined(CONFIG_OF_FDT) && defined(CONFIG_OF_BOARD_SETUP) */
++
++void setup_iomux_uart0(void)
++{
++	/* Muxing for linflex0 */
++
++	/* set PC09 - MSCR[41] - for UART0 TXD */
++	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART0_TXD,
++	       SIUL2_0_MSCRn(SIUL2_PC09_MSCR_S32_G1_UART0));
++
++	/* set PC10 - MSCR[42] - for UART0 RXD */
++	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
++	       SIUL2_0_MSCRn(SIUL2_PC10_MSCR_S32_G1_UART0));
++
++	/* set PC10 - MSCR[512]/IMCR[0] - for UART0 RXD */
++	writel(SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad,
++	       SIUL2_0_IMCRn(SIUL2_PC10_IMCR_S32_G1_UART0));
++}
++
+diff --git a/board/microsys/mpxs32g274a/dq_swap_cfg.c b/board/microsys/mpxs32g274a/dq_swap_cfg.c
+new file mode 100644
+index 000000000000..575297cffc8b
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/dq_swap_cfg.c
+@@ -0,0 +1,75 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2020 NXP
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright notice,
++ * this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above copyright notice,
++ * this list of conditions and the following disclaimer in the documentation
++ * and/or other materials provided with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ * contributors may be used to endorse or promote products derived from this
++ * software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
++ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include "ddr_init.h"
++
++#if defined(CONFIG_TARGET_S32R45EVB)
++struct regconf dq_swap_cfg[] = {
++	{0x40394830, 0x00000002},
++	{0x40394834, 0x00000005},
++	{0x40394838, 0x00000007},
++	{0x4039483c, 0x00000004},
++	{0x40394840, 0x00000000},
++	{0x40394844, 0x00000001},
++	{0x40394848, 0x00000006},
++	{0x4039484c, 0x00000003},
++	{0x40396830, 0x00000004},
++	{0x40396834, 0x00000006},
++	{0x40396838, 0x00000007},
++	{0x4039683c, 0x00000001},
++	{0x40396840, 0x00000005},
++	{0x40396844, 0x00000002},
++	{0x40396848, 0x00000000},
++	{0x4039684c, 0x00000003},
++	{0x40398830, 0x00000004},
++	{0x40398834, 0x00000006},
++	{0x40398838, 0x00000005},
++	{0x4039883c, 0x00000007},
++	{0x40398840, 0x00000001},
++	{0x40398844, 0x00000003},
++	{0x40398848, 0x00000000},
++	{0x4039884c, 0x00000002},
++	{0x4039a830, 0x00000000},
++	{0x4039a834, 0x00000004},
++	{0x4039a838, 0x00000002},
++	{0x4039a83c, 0x00000001},
++	{0x4039a840, 0x00000007},
++	{0x4039a844, 0x00000005},
++	{0x4039a848, 0x00000006},
++	{0x4039a84c, 0x00000003},
++};
++#elif defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB) \
++    || defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ASBC2) \
++    || defined(CONFIG_TARGET_S32G274ACPCIS)
++struct regconf dq_swap_cfg[] = {};
++#endif
++
++size_t dq_swap_cfg_size = sizeof(dq_swap_cfg) / sizeof(struct regconf);
+diff --git a/board/microsys/mpxs32g274a/eth.c b/board/microsys/mpxs32g274a/eth.c
+new file mode 100644
+index 000000000000..32907a7235a8
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/eth.c
+@@ -0,0 +1,398 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2019-2020 NXP
++ * Copyright (C) 2020 MicroSys Electronics GmbH
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <asm/io.h>
++#include <net.h>
++#ifndef CONFIG_DM_ETH
++#include <netdev.h>
++#endif
++#include <phy.h>
++#include <malloc.h>
++#include <asm/types.h>
++#include <asm/arch/soc.h>
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++#include <dm/platform_data/dwc_eth_qos_dm.h>
++#endif
++#if CONFIG_IS_ENABLED(FSL_PFENG)
++#include <dm/platform_data/pfeng_dm_eth.h>
++#endif
++#include <fdt_support.h>
++#include <clk.h>
++#include <dt-bindings/clock/s32gen1-clock.h>
++#include <dt-bindings/clock/s32g274a-clock.h>
++#include <s32gen1_clk_utils.h>
++#include <s32gen1_gmac_utils.h>
++#include <dm/device_compat.h>
++#include <dm/pinctrl.h>
++
++static void ft_update_eth_addr_by_name(const char *name, const u8 idx,
++				       void *fdt, int nodeoff)
++{
++	u8 ea[ARP_HLEN];
++
++	if (eth_env_get_enetaddr_by_index(name, idx, ea)) {
++		fdt_setprop(fdt, nodeoff, "local-mac-address", ea, ARP_HLEN);
++		printf("DT: %s%i set to %pM\n", name, idx, ea);
++	}
++}
++
++#if CONFIG_IS_ENABLED(FSL_PFENG)
++__maybe_unused static bool intf_is_xmii(u32 intf)
++{
++	return intf == PHY_INTERFACE_MODE_MII ||
++		intf == PHY_INTERFACE_MODE_RMII ||
++		intf == PHY_INTERFACE_MODE_RGMII;
++}
++
++#ifdef CONFIG_TARGET_S32G274ARDB
++static int get_phy_handle(const void *fdt, int nodeoffset)
++{
++	const int *php;
++	int len;
++
++	php = fdt_getprop(fdt, nodeoffset, "phy-handle", &len);
++	if (!php || len != sizeof(*php))
++		return -1;
++
++	return fdt32_to_cpu(*php);
++}
++
++static void ft_enet_pfe_fixup_phy(u32 idx, void *fdt, int nodeoff)
++{
++	int phy_handle;
++	char env_name[32];
++	char *phy_addr_str;
++	u32 phy_addr;
++	int phy_nodeoff;
++
++	snprintf(env_name, sizeof(env_name), "pfe%d_phy_addr", idx);
++
++	phy_addr_str = env_get(env_name);
++	phy_handle = get_phy_handle(fdt, nodeoff);
++
++	if (!phy_addr_str || phy_handle == -1)
++		return;
++
++	phy_addr = (unsigned int)simple_strtoul(phy_addr_str, NULL, 16);
++	phy_nodeoff = fdt_node_offset_by_phandle(fdt, phy_handle);
++
++	if (phy_nodeoff >= 0) {
++		fdt_setprop_u32(fdt, phy_nodeoff, "reg", phy_addr);
++		printf("DT: pfe%d: update phy addr to 0x%x\n", idx, phy_addr);
++	}
++}
++#endif
++
++static void ft_enet_pfe_emac_fixup(u32 idx, void *fdt)
++{
++	int nlen = 0, nodeoff = -1;
++	char *ifname;
++	char reqname[8];
++
++	sprintf(reqname, "pfe%i", idx);
++
++	while (1) {
++
++		nodeoff = fdt_node_offset_by_compatible(fdt, nodeoff, "fsl,pfeng-logif");
++		if (nodeoff < 0)
++			return;
++
++		ifname = (char *)fdt_getprop(fdt, nodeoff, "fsl,pfeng-if-name", &nlen);
++		if (!ifname || !nlen)
++			continue;
++
++		if (strncmp(reqname, ifname, strlen(reqname)))
++			continue;
++
++		if (pfeng_cfg_emac_get_interface(idx) == PHY_INTERFACE_MODE_NONE) {
++			printf("DT: Disabling PFE_EMAC_%i\n", idx);
++			fdt_status_disabled(fdt, nodeoff);
++		} else {
++			printf("DT: Enabling PFE_EMAC_%i\n", idx);
++			fdt_status_okay(fdt, nodeoff);
++
++			/* sync MAC HW addr to DT [local-mac-address] */
++			ft_update_eth_addr_by_name("pfe", idx, fdt, nodeoff);
++
++#ifdef CONFIG_TARGET_S32G274ARDB
++			ft_enet_pfe_fixup_phy(idx, fdt, nodeoff);
++#endif
++		}
++		/* We are done */
++		return;
++	}
++}
++
++static bool pfeng_drv_status_active(void)
++{
++	struct udevice *dev;
++
++	if (uclass_get_device_by_name(UCLASS_ETH, "eth_pfeng", &dev))
++		return false;
++
++	return dev->flags & DM_FLAG_ACTIVATED;
++}
++#endif
++
++/*
++ * Ethernet DT fixup before OS load
++ *
++ */
++void ft_enet_fixup(void *fdt)
++{
++	int __maybe_unused nodeoff;
++	bool __maybe_unused ena;
++
++	/* PFE */
++#if CONFIG_IS_ENABLED(FSL_PFENG)
++	nodeoff = fdt_node_offset_by_compatible(fdt, 0, "fsl,s32g274a-pfeng");
++	if (nodeoff >= 0) {
++		if (!pfeng_drv_status_active()) {
++			/* Disable PFE in DT fully */
++			printf("DT: Disabling PFE\n");
++			fdt_status_disabled(fdt, nodeoff);
++		} else {
++			printf("DT: Enabling PFE\n");
++			fdt_status_okay(fdt, nodeoff);
++
++			/* Check for interfaces and manage accordingly */
++			ft_enet_pfe_emac_fixup(0, fdt);
++			ft_enet_pfe_emac_fixup(1, fdt);
++			ft_enet_pfe_emac_fixup(2, fdt);
++		}
++	}
++#endif /* CONFIG_IS_ENABLED(FSL_PFENG) */
++
++	/* GMAC */
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++	nodeoff = fdt_node_offset_by_compatible(fdt, 0, "fsl,s32cc-dwmac");
++	if (nodeoff >= 0) {
++
++		if (s32ccgmac_cfg_get_mode() == S32CCGMAC_MODE_DISABLE) {
++			ena = false;
++#if CONFIG_IS_ENABLED(FSL_PFENG)
++		} else if (intf_is_xmii(s32ccgmac_cfg_get_interface()) &&
++			   intf_is_xmii(pfeng_cfg_emac_get_interface(1)) &&
++			   pfeng_drv_status_active()) {
++			ena = false;
++#endif /* CONFIG_IS_ENABLED(FSL_PFENG) */
++		} else
++			ena = true;
++
++		if (!ena) {
++			printf("DT: Disabling GMAC\n");
++			fdt_status_disabled(fdt, nodeoff);
++		} else {
++			printf("DT: Enabling GMAC\n");
++			fdt_status_okay(fdt, nodeoff);
++
++			/* sync MAC HW addr to DT [local-mac-address] */
++			ft_update_eth_addr_by_name("eth", 0, fdt, nodeoff);
++		}
++	}
++#endif /* CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC) */
++}
++
++/*
++ * GMAC driver for common chassis
++ *
++ */
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++
++#if !CONFIG_IS_ENABLED(OF_CONTROL)
++/* driver platform data (in case of no DT) */
++static struct eqos_pdata dwmac_pdata = {
++	.eth = {
++		/* registers base address */
++		.iobase = (phys_addr_t)ETHERNET_0_BASE_ADDR,
++		/* default phy mode */
++		.phy_interface = PHY_INTERFACE_MODE_RGMII,
++		/* max 1 Gbps */
++		.max_speed = SPEED_1000,
++	},
++	/* vendor specific driver config */
++	.config = &eqos_s32cc_config,
++};
++#endif /* OF_CONTROL */
++
++/* GMAC platform specific setup */
++
++void setup_iomux_enet_gmac(struct udevice *dev, int intf)
++{
++	/* configure interface specific pins */
++	switch (intf) {
++	case PHY_INTERFACE_MODE_SGMII:
++		pinctrl_select_state(dev, "gmac_sgmii");
++		break;
++
++	case PHY_INTERFACE_MODE_RGMII:
++		pinctrl_select_state(dev, "gmac_rgmii");
++		break;
++
++	case PHY_INTERFACE_MODE_RMII:
++		/* TODO: pinmuxing for RMII  */
++		break;
++
++	case PHY_INTERFACE_MODE_MII:
++		/* TODO: pinmuxing for MII  */
++		break;
++
++	default:
++		break;
++	}
++}
++
++static ulong gmac_calc_link_speed(u32 speed)
++{
++	switch (speed) {
++	case SPEED_10:   /* 2.5MHz */
++		return 2500000UL;
++	case SPEED_100:  /* 25MHz */
++		return 25000000UL;
++	default:
++	case SPEED_1000: /* 125MHz (also 325MHz for 2.5G) */
++		return 125000000UL;
++	}
++}
++
++static int get_gmac_clocks(u32 mode, const char **rx,
++			   const char **tx, const char **ts)
++{
++	switch (mode) {
++	case PHY_INTERFACE_MODE_SGMII:
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++        if (rx)
++            *rx = "rx1_sgmii";
++        if (tx)
++            *tx = "tx1_sgmii";
++        if (ts)
++            *ts = NULL; //"ts1_sgmii";
++#else
++		if (rx)
++			*rx = "rx_sgmii";
++		if (tx)
++			*tx = "tx_sgmii";
++		if (ts)
++			*ts = "ts_sgmii";
++#endif
++		break;
++	case PHY_INTERFACE_MODE_RGMII:
++		if (rx)
++			*rx = "rx_rgmii";
++		if (tx)
++			*tx = "tx_rgmii";
++		if (ts)
++			*ts = "ts_rgmii";
++		break;
++	case PHY_INTERFACE_MODE_RMII:
++	case PHY_INTERFACE_MODE_MII:
++	default:
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++int set_tx_clk_enet_gmac(struct udevice *gmac_dev, u32 speed)
++{
++	const char *tx;
++	ulong freq = gmac_calc_link_speed(speed);
++	u32 mode = eqos_get_interface_s32cc(gmac_dev);
++	int ret = get_gmac_clocks(mode, NULL, &tx, NULL);
++
++	if (ret) {
++		dev_err(gmac_dev, "Invalid GMAC interface: %s\n",
++			phy_string_for_interface(mode));
++		return -EINVAL;
++	}
++
++	if (s32gen1_set_dev_clk_rate(tx, gmac_dev, freq) != freq)
++		return -EINVAL;
++
++	if (s32gen1_enable_dev_clk(tx, gmac_dev)) {
++		dev_err(gmac_dev, "Failed to enable gmac_tx clock\n");
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++void setup_clocks_enet_gmac(int intf, struct udevice *gmac_dev)
++{
++	const char *rx, *tx, *ts;
++	int ret;
++
++	ret = get_gmac_clocks(intf, &rx, &tx, &ts);
++	/* Do nothing for the interfaces that are not supported */
++	if (ret)
++		return;
++
++	if (set_tx_clk_enet_gmac(gmac_dev, SPEED_1000))
++		dev_err(gmac_dev, "Failed to set GMAC TX frequency\n");
++
++	if (rx) {
++	    ret = s32gen1_enable_dev_clk(rx, gmac_dev);
++	    if (ret)
++	        dev_err(gmac_dev, "Failed to enable %s clock\n", rx);
++	}
++
++	if (tx) {
++	    ret = s32gen1_enable_dev_clk(tx, gmac_dev);
++	    if (ret)
++	        dev_err(gmac_dev, "Failed to enable %s clock\n", tx);
++	}
++
++	if (ts) {
++	    ret = s32gen1_enable_dev_clk(ts, gmac_dev);
++	    if (ret)
++	        dev_err(gmac_dev, "Failed to enable %s clock\n", ts);
++	}
++}
++
++#endif /* CONFIG_DWC_ETH_QOS_S32CC */
++
++/*
++ * PFEng driver for S32G only
++ *
++ */
++#if CONFIG_IS_ENABLED(FSL_PFENG) && !CONFIG_IS_ENABLED(OF_CONTROL)
++
++/* driver platform data (in case of no DT) */
++static struct pfeng_pdata pfeng_platdata = {
++	.eth = {
++		/* registers base address */
++		.iobase = (phys_addr_t)ETHERNET_0_BASE_ADDR,
++		/* default phy mode */
++		.phy_interface = PHY_INTERFACE_MODE_RGMII,
++	},
++	/* vendor specific driver config */
++	.config = &pfeng_s32g274a_config,
++};
++
++#endif /* CONFIG_FSL_PFENG */
++
++#if !CONFIG_IS_ENABLED(OF_CONTROL)
++/*
++ * Platform network devices
++ *
++ */
++U_BOOT_DEVICES(s32_enet) = {
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++	{
++		.name = "eth_eqos",
++		.platdata = &dwmac_pdata,
++	},
++#endif
++#if CONFIG_IS_ENABLED(FSL_PFENG)
++	{
++		.name = "eth_pfeng",
++		.platdata = &pfeng_platdata,
++	},
++#endif
++};
++#endif
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.c b/board/microsys/mpxs32g274a/mpxs32g274a.c
+new file mode 100644
+index 000000000000..375445c2b742
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.c
+@@ -0,0 +1,345 @@
++/* -*-C-*- */
++/* SPDX-License-Identifier:    GPL-2.0+ */
++/*
++ * Copyright (C) 2020 MicroSys Electronics GmbH
++ * Author: Kay Potthoff <kay.potthoff@microsys.de>
++ *
++ */
++
++/*!
++ * \addtogroup <group> <title>
++ * @{
++ *
++ * \file
++ * <description>
++ */
++
++#include "mpxs32g274a.h"
++
++#include <i2c.h>
++#include <asm/arch-s32/s32-gen1/serdes_regs.h>
++#include <asm/gpio.h>
++#include <dm/uclass.h>
++#include <hwconfig.h>
++
++#include "pincfg.h"
++#include "board_common.h"
++#include "mpxs32g274a.h"
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++static serdes_t serdes_mode = SERDES_M2;
++#endif
++
++void setup_iomux_uart(void)
++{
++#if (CONFIG_FSL_LINFLEX_MODULE == 0)
++
++    /* Muxing for linflex0 */
++    setup_iomux_uart0();
++
++#elif (CONFIG_FSL_LINFLEX_MODULE == 1)
++    /* Muxing for linflex1 */
++
++    /* set PC08 - MSCR[40] - for UART1 TXD */
++    writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD,
++           SIUL2_0_MSCRn(SIUL2_PC08_MSCR_S32_G1_UART1));
++
++    /* set PC04 - MSCR[36] - for UART1 RXD */
++    writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
++           SIUL2_0_MSCRn(SIUL2_PC04_MSCR_S32_G1_UART1));
++
++    /* set PC04 - MSCR[736]/IMCR[224] - for UART1 RXD */
++    writel(SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad,
++           SIUL2_1_IMCRn(SIUL2_PC04_IMCR_S32_G1_UART1));
++#else
++#error "Unsupported UART pinmuxing configuration"
++#endif
++}
++
++void setup_iomux_i2c(void)
++{
++    for (int i=0; i<NUM_I2C_BUS; i++)
++        set_i2c_cr(&i2c_bus[i]);
++}
++
++static const char* bmode_str(const uint8_t bmode)
++{
++    switch (bmode) {
++    case 0: return "Serial boot/XOSC diff";
++    case 1: return "RCON";
++    case 2: return "Serial boot/XOSC/bypass";
++    default: return "n/a";
++    }
++}
++
++static void print_dips(const uint8_t sw)
++{
++    printf("  PCIe0 CLK:        %dMHz\n", sw&BIT(0) ? 100 : 125);
++    printf("  PCIe1/SGMII CLK:  %dMHz\n", sw&BIT(1) ? 100 : 125);
++    printf("  RCON EEPROM WP:   %s\n", sw&BIT(2) ? "yes" : "no");
++    printf("  SEL SDHC:         %s\n", sw&BIT(3) ? "eMMC" : "SDHC");
++    printf("  BOOT MODE:        %s\n", bmode_str((sw>>4)&0x3));
++}
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++
++serdes_t get_serdes_sel(void)
++{
++    uchar reg = 0xff;
++
++    struct udevice *dev = NULL;
++    if (i2c_get_chip_for_busnum(1, 0x44, 1, &dev)==0) {
++        dm_i2c_read(dev, 0x5, &reg, 1);
++    }
++
++    return (reg & 1) ? SERDES_M2 : SERDES_2G5;
++}
++
++static int set_serdes_sel(const serdes_t serdes_mode)
++{
++    uchar reg = 0xff;
++
++    struct udevice *dev = NULL;
++    if (i2c_get_chip_for_busnum(1, 0x44, 1, &dev)==0) {
++        dm_i2c_read(dev, 0x5, &reg, 1);
++        if (serdes_mode == SERDES_2G5)
++            reg &= ~1;
++        else
++            reg |= 1;
++        dm_i2c_write(dev, 0x5, &reg, 1);
++    }
++
++    return 0;
++}
++
++static int set_eeprom_dip(const uchar reg)
++{
++    struct udevice *dev = NULL;
++    if (i2c_get_chip_for_busnum(0, 0x4d, 1, &dev)==0) {
++        dm_i2c_write(dev, 0, &reg, 1);
++    }
++
++    return 0;
++}
++
++static void check_kconfig(const serdes_t serdes_mode)
++{
++    switch (serdes_mode) {
++    case SERDES_2G5:
++        env_set("kconfig", "#conf@s32g274asbc2_2g5");
++        break;
++    default:
++        env_set("kconfig", "#conf@s32g274asbc2_m2");
++        break;
++    }
++}
++
++#endif
++
++uchar get_eeprom_dip(const int verbose)
++{
++    static uchar reg = 0xff;
++
++    if (reg == 0xff) {
++        struct udevice *dev = NULL;
++        if (i2c_get_chip_for_busnum(0, 0x4d, 1, &dev)==0) {
++            dm_i2c_read(dev, 0, &reg, 1);
++            if (verbose) {
++                printf("DIP EEPROM[%d]\n", 0);
++                print_dips(reg);
++            }
++        }
++    }
++
++    return reg;
++}
++
++static uint8_t get_board_rev(void)
++{
++    struct udevice *dev;
++    static uchar reg = 0xff;
++
++    if ((reg==0xff) && (i2c_get_chip_for_busnum(0, 0x43, 1, &dev)==0)) {
++        if (dm_i2c_read(dev, 0x0f, &reg, 1)==0) {
++            reg = (((reg&BIT(7))>>7) | ((reg&BIT(6))>>5) | ((reg&BIT(5))>>3)) + 1;
++        }
++    }
++
++    return reg;
++}
++
++enum serdes_clock s32_serdes_get_clock_from_hwconfig(int id)
++{
++    return CLK_EXT;
++}
++
++enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
++{
++    enum serdes_clock_fmhz fmhz = CLK_100MHZ;
++
++    uchar reg = get_eeprom_dip(1);
++
++    fmhz = (reg & BIT(id)) ? CLK_100MHZ : CLK_125MHZ;
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++
++    if (id == 0) {
++
++        const enum serdes_clock_fmhz current_fmhz = fmhz;
++
++        if (fmhz != CLK_100MHZ) {
++            fmhz = CLK_100MHZ;
++            reg |= BIT(id);
++            set_eeprom_dip(reg);
++            printf("SerDes%d clocking has changed from %dMHz to %dMHz!\n",
++                    id,
++                    current_fmhz==CLK_100MHZ ? 100:125,
++                    fmhz==CLK_100MHZ ? 100:125);
++            puts("Performing necessary reset ...\n");
++            do_reset(NULL, 0, 0, NULL);
++        }
++    }
++
++    if (id == 1) {
++
++        const enum serdes_clock_fmhz current_fmhz = fmhz;
++
++        const serdes_t serdes_mode = get_serdes_sel();
++
++        if (serdes_mode == SERDES_M2) {
++            fmhz = CLK_100MHZ;
++            reg |= BIT(id);
++        }
++        else {
++            fmhz = CLK_125MHZ;
++            reg &= ~BIT(id);
++        }
++
++        if (fmhz != current_fmhz) {
++            set_eeprom_dip(reg);
++            printf("SerDes%d clocking has changed from %dMHz to %dMHz!\n",
++                    id,
++                    current_fmhz==CLK_100MHZ ? 100:125,
++                    fmhz==CLK_100MHZ ? 100:125);
++            puts("Performing necessary reset ...\n");
++            do_reset(NULL, 0, 0, NULL);
++        }
++    }
++#endif
++
++    printf("PCIe%d clock %dMHz\n", id, fmhz==CLK_100MHZ ? 100 : 125);
++
++    return fmhz;
++}
++
++enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id)
++{
++    char pcie_name[10];
++    sprintf(pcie_name, "pcie%d", id);
++    enum serdes_dev_type devtype = SERDES_INVALID;
++
++    if (hwconfig_subarg_cmp(pcie_name, "mode", "rc"))
++        devtype = PCIE_RC;
++    if (hwconfig_subarg_cmp(pcie_name, "mode", "ep"))
++        devtype = PCIE_EP;
++    if (hwconfig_subarg_cmp(pcie_name, "mode", "sgmii"))
++        devtype = SGMII;
++    if (hwconfig_subarg_cmp(pcie_name, "mode", "rc&sgmii"))
++        devtype = PCIE_RC | SGMII;
++    if (hwconfig_subarg_cmp(pcie_name, "mode", "ep&sgmii"))
++        devtype = PCIE_EP | SGMII;
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++
++    if (id == 0) {
++        if (devtype == SGMII)
++            devtype |= PCIE_RC;
++        else
++            devtype |= SGMII;
++    }
++
++    if (id == 1) {
++        if (hwconfig_subarg_cmp("pcie1", "xpcs_mode", "2G5")) {
++            serdes_mode = SERDES_2G5;
++            devtype = SGMII;
++        }
++        else {
++            serdes_mode = SERDES_M2;
++            switch (devtype) {
++            case PCIE_RC:
++            case PCIE_EP:
++                devtype |= SGMII;
++                break;
++            default:
++                devtype = PCIE_RC | SGMII;
++                break;
++            }
++        }
++
++        check_kconfig(serdes_mode);
++        set_serdes_sel(serdes_mode);
++    }
++#endif
++
++    //printf("devtype = 0x%02x\n", devtype);
++
++    return devtype;
++}
++
++enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id)
++{
++    char pcie_name[10];
++
++    sprintf(pcie_name, "pcie%d", id);
++    /* Set default mode to invalid to force configuration */
++    enum serdes_xpcs_mode xpcs_mode = SGMII_INAVALID;
++
++    if (hwconfig_subarg_cmp(pcie_name, "xpcs_mode", "0"))
++        xpcs_mode = SGMII_XPCS0;
++    if (hwconfig_subarg_cmp(pcie_name, "xpcs_mode", "1"))
++        xpcs_mode = SGMII_XPCS1;
++    if (hwconfig_subarg_cmp(pcie_name, "xpcs_mode", "both"))
++        xpcs_mode = SGMII_XPCS0_XPCS1;
++    if (hwconfig_subarg_cmp(pcie_name, "xpcs_mode", "2G5"))
++        xpcs_mode = SGMII_XPCS0_2G5;
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++
++    if (id == 0) {
++        xpcs_mode = SGMII_XPCS1;
++    }
++
++    if (id == 1) {
++        const serdes_t serdes_mode = get_serdes_sel();
++        if (serdes_mode == SERDES_M2)
++            xpcs_mode = SGMII_XPCS1;
++        else
++            xpcs_mode = SGMII_XPCS0_2G5;
++    }
++
++#endif
++
++    return xpcs_mode;
++}
++
++int board_early_init_r(void)
++{
++    printf("Board: Rev. %d\n", get_board_rev());
++
++    return 0;
++}
++
++/*!@}*/
++
++/* *INDENT-OFF* */
++/******************************************************************************
++ * Local Variables:
++ * mode: C
++ * c-indent-level: 4
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ * kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;
++ * vim: set expandtab filetype=c:
++ * vi: set et tabstop=4 shiftwidth=4: */
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.h b/board/microsys/mpxs32g274a/mpxs32g274a.h
+new file mode 100644
+index 000000000000..5fecf1bd13f7
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.h
+@@ -0,0 +1,58 @@
++/* -*-C-*- */
++/* SPDX-License-Identifier:    GPL-2.0+ */
++/*
++ * Copyright (C) 2020 MicroSys Electronics GmbH
++ * Author: Kay Potthoff <kay.potthoff@microsys.de>
++ *
++ */
++
++/*!
++ * \addtogroup <group> <title>
++ * @{
++ *
++ * \file
++ * <description>
++ */
++
++#ifndef MPXS32G274A_H
++#define MPXS32G274A_H
++
++#include <common.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++
++typedef enum {
++    SERDES_M2,
++    SERDES_2G5
++} serdes_t;
++
++extern serdes_t get_serdes_sel(void);
++
++#endif
++
++extern uchar get_eeprom_dip(const int verbose);
++
++#ifdef __cplusplus
++} /* extern "C" */
++#endif
++
++#endif /* MPXS32G274A_H */
++
++/*!@}*/
++
++/* *INDENT-OFF* */
++/******************************************************************************
++ * Local Variables:
++ * mode: C
++ * c-indent-level: 4
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ * kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;
++ * vim: set expandtab filetype=c:
++ * vi: set et tabstop=4 shiftwidth=4: */
+diff --git a/board/microsys/mpxs32g274a/pinctl.c b/board/microsys/mpxs32g274a/pinctl.c
+new file mode 100644
+index 000000000000..f6af0730c8e3
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/pinctl.c
+@@ -0,0 +1,254 @@
++/* -*-C-*- */
++/* SPDX-License-Identifier:    GPL-2.0+ */
++/*
++ * Copyright (C) 2020 MicroSys Electronics GmbH
++ *
++ */
++
++#include "pinctl.h"
++
++#include <asm/types.h>
++#include <asm/arch/soc.h>
++
++#ifdef DEBUG
++static const char* get_pin_src(const uint32_t val)
++{
++    switch (SIUL2_MSCR_S32_G1_SRC(val)) {
++    case SIUL2_MSCR_S32_G1_SRC_208MHz:
++        return "208MHz";
++    case SIUL2_MSCR_S32_G1_SRC_150MHz:
++        return "150MHz";
++    case SIUL2_MSCR_S32_G1_SRC_100MHz:
++        return "100MHz";
++    case SIUL2_MSCR_S32_G1_SRC_50MHz:
++        return "50MHz";
++    case SIUL2_MSCR_S32_G1_SRC_25MHz:
++        return "25MHz";
++    default:
++        return "";
++    }
++}
++#endif
++
++void set_cr(const unsigned int cr, const uint32_t val)
++{
++    uint64_t _cr = 0;
++
++    if (cr >= 0 && cr <= 101) {
++        _cr = SIUL2_0_MSCRn(cr);
++    } else if (cr >= 512 && cr <= 595) {
++        _cr = SIUL2_0_IMCRn(cr - 512);
++    } else if (cr >= 112 && cr <= 190) {
++        _cr = SIUL2_1_MSCRn(cr);
++    } else if (cr >= 631 && cr <= 1023) {
++        _cr = SIUL2_1_IMCRn(cr - 512);
++    }
++
++    if (_cr > 0) {
++#ifdef DEBUG
++        printf("set_cr(P%c_%02d %3d -> 0x%08llx, 0x%08x (%s,%s,%s,%s,%s): ALT%d)\n",
++                cr < 512 ? cr / 16 + 'A' : '?', cr < 512 ? cr % 16 : 99, cr,
++                        _cr,
++                        val,
++                        SIUL2_MSCR_S32_G1_OBE(val) ? "OBE":"",
++                        SIUL2_MSCR_S32_G1_IBE(val) ? "IBE":"",
++                        get_pin_src(val),
++                        SIUL2_MSCR_S32_G1_PUE(val) ? "PUE":"",
++                        SIUL2_MSCR_S32_G1_PUS(val) ? "PUS":"",
++                        SIUL2_MSCR_MUX_MODE(val));
++#endif
++        writel(val, _cr);
++    } else
++        printf("Error: MSCR/IMCR %d out of range!\n", cr);
++}
++
++void set_cr_input(const pin_t *const pin)
++{
++    set_cr(pin[0].num, SIUL2_MSCR_S32_G1_IBE_EN);
++    set_cr(pin[1].num, pin[1].mux);
++}
++
++void set_cr_output(const pin_t *const pin)
++{
++    set_cr(pin[0].num,
++            (SIUL2_MSCR_S32_G1_OBE_EN | pin[0].mux));
++}
++
++void set_i2c_cr(const i2c_cr_t * const i2c)
++{
++    set_cr(i2c->sda[I2C_SDA_O].num,
++           (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++            SIUL2_MSCR_S32_G1_ODE_EN | i2c->sda[I2C_SDA_O].mux));
++    set_cr(i2c->sda[I2C_SDA_I].num,
++           (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++            SIUL2_MSCR_S32_G1_ODE_EN | i2c->sda[I2C_SDA_I].mux));
++    set_cr(i2c->sclk[I2C_SCLK_O].num,
++           (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++            SIUL2_MSCR_S32_G1_ODE_EN | i2c->sclk[I2C_SCLK_O].mux));
++    set_cr(i2c->sclk[I2C_SCLK_I].num,
++           (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++            SIUL2_MSCR_S32_G1_ODE_EN | i2c->sclk[I2C_SCLK_I].mux));
++}
++
++void set_lin_cr(const lin_cr_t * const lin)
++{
++    set_cr(lin->tx[LIN_TX_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_100MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++            lin->tx[LIN_TX_O].mux));
++    set_cr(lin->rx[LIN_RX_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_100MHz | SIUL2_MSCR_S32_G1_IBE_EN |
++            lin->rx[LIN_RX_O].mux));
++    set_cr(lin->rx[LIN_RX_I].num, lin->rx[LIN_RX_I].mux);
++}
++
++void set_can_cr(const can_cr_t * const can)
++{
++    set_cr(can->tx[CAN_TX_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_100MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++            can->tx[CAN_TX_O].mux));
++    set_cr(can->rx[GPIO_IDX].num,
++           (SIUL2_MSCR_S32_G1_SRC_100MHz | SIUL2_MSCR_S32_G1_IBE_EN |
++            can->rx[GPIO_IDX].mux));
++    set_cr(can->rx[CAN_RX_I].num, can->rx[CAN_RX_I].mux);
++}
++
++void set_rgmii_cr(const mac_rgmii_t * const gmac)
++{
++    // TX_CLK:
++    set_cr(gmac->tx_clk[TX_CLK_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++            gmac->tx_clk[TX_CLK_O].mux));
++
++    // TX_EN:
++    set_cr(gmac->tx_en[TX_EN_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++            gmac->tx_en[TX_EN_O].mux));
++
++    // TX_D[0-3]:
++    for (int i = 0; i < 4; i++) {
++        set_cr(gmac->tx_d[i][TX_D_O].num,
++               (SIUL2_MSCR_S32_G1_SRC_150MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++                gmac->tx_d[i][TX_D_O].mux));
++    }
++
++    // RX_CLK:
++    set_cr(gmac->rx_clk[RX_CLK_O].num, SIUL2_MSCR_S32_G1_ENET_RX_CLK);
++    set_cr(gmac->rx_clk[RX_CLK_I].num, gmac->rx_clk[RX_CLK_I].mux);
++
++    // RX_DV:
++    set_cr(gmac->rx_dv[RX_DV_O].num, SIUL2_MSCR_S32_G1_ENET_RX_DV);
++    set_cr(gmac->rx_dv[RX_DV_I].num, gmac->rx_dv[RX_DV_I].mux);
++
++    // RX_D[0-3]:
++    for (int i = 0; i < 4; i++) {
++        set_cr(gmac->rx_d[i][RX_D_O].num, SIUL2_MSCR_S32_G1_IBE_EN);
++        set_cr(gmac->rx_d[i][RX_D_I].num, gmac->rx_d[i][RX_D_I].mux);
++    }
++
++    // MDC:
++    set_cr(gmac->mdc[MDC_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++            gmac->mdc[MDC_O].mux));
++
++    // MDIO:
++    set_cr(gmac->mdio[MDIO_O].num,
++           (SIUL2_MSCR_S32_G1_SRC_208MHz | SIUL2_MSCR_S32_G1_OBE_EN |
++            SIUL2_MSCR_S32_G1_IBE_EN | gmac->mdio[MDIO_O].mux));
++    set_cr(gmac->mdio[MDIO_I].num, gmac->mdio[MDIO_I].mux);
++}
++
++void set_dspi_cr(const dspi_cr_t * const dspi)
++{
++    set_cr(dspi->sck[DSPI_SCK].num,
++            (SIUL2_MSCR_S32_G1_OBE_EN | dspi->sck[DSPI_SCK].mux));
++
++    set_cr(dspi->sin[DSPI_SIN].num,
++            (SIUL2_MSCR_S32_G1_IBE_EN | \
++                    SIUL2_MSCR_S32_G1_PUE_EN | \
++                    SIUL2_MSCR_S32_G1_PUS_EN));
++    set_cr(dspi->sin[DSPI_SIN+1].num, dspi->sin[DSPI_SIN+1].mux);
++
++    set_cr(dspi->sout[DSPI_SOUT].num,
++            (SIUL2_MSCR_S32_G1_OBE_EN | dspi->sout[DSPI_SOUT].mux));
++
++    for (int i=0; i<DSPI_MAX_CS; i++) {
++        if (dspi->cs[i]) {
++            set_cr(dspi->cs[i][DSPI_PCS].num,
++                    (SIUL2_MSCR_S32_G1_PAD_CTL_SPI_CSx |
++                            dspi->cs[i][DSPI_PCS].mux));
++        } else break;
++    }
++}
++
++void set_qspi_cr(const qspi_cr_t * const qspi)
++{
++    for (int i = 0; i < 2; i++) {
++        for (int j = 0; j < 2; j++) {
++            if (qspi->ck[i][j])
++                set_cr(qspi->ck[i][j][1].num,
++                        (SIUL2_MSCR_S32_G1_OBE_EN | qspi->ck[i][j][1].mux));
++        }
++    }
++
++    for (int i=0; i<8; i++) {
++        set_cr(qspi->data[i][1].num,
++                (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++                        SIUL2_MSCR_S32_G1_ODE_EN | qspi->data[i][1].mux));
++        set_cr(qspi->data[i][2].num,
++                (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++                        SIUL2_MSCR_S32_G1_ODE_EN | qspi->data[i][2].mux));
++    }
++
++    for (int i=0; i<QSPI_MAX_CS; i++) {
++        if (qspi->cs[i]) {
++            set_cr(qspi->cs[i][1].num,
++                    (SIUL2_MSCR_S32_G1_PAD_CTL_SPI_CSx |
++                            qspi->cs[i][1].mux));
++        }
++    }
++
++    set_cr_input(qspi->irq);
++
++    set_cr(qspi->dqs[1].num,
++            (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++                    SIUL2_MSCR_S32_G1_ODE_EN | qspi->dqs[1].mux));
++    set_cr(qspi->dqs[2].num,
++            (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++                    SIUL2_MSCR_S32_G1_ODE_EN | qspi->dqs[2].mux));
++}
++
++void set_usb_cr(const usb_cr_t *const usb)
++{
++    set_cr(usb->clk[0].num, SIUL2_MSCR_S32_G1_IBE_EN);
++    set_cr(usb->clk[1].num, usb->clk[1].mux);
++
++    set_cr(usb->dir[0].num, SIUL2_MSCR_S32_G1_IBE_EN);
++    set_cr(usb->dir[1].num, usb->dir[1].mux);
++
++    set_cr(usb->stp[1].num, SIUL2_MSCR_S32_G1_OBE_EN | usb->stp[1].mux);
++
++    set_cr(usb->nxt[0].num, SIUL2_MSCR_S32_G1_IBE_EN);
++    set_cr(usb->nxt[1].num, usb->nxt[1].mux);
++
++    for (int i=0; i<8; i++) {
++        set_cr(usb->data[i][1].num,
++                (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++                        SIUL2_MSCR_S32_G1_ODE_EN | usb->data[i][1].mux));
++        set_cr(usb->data[i][2].num,
++                (SIUL2_MSCR_S32_G1_OBE_EN | SIUL2_MSCR_S32_G1_IBE_EN |
++                        SIUL2_MSCR_S32_G1_ODE_EN | usb->data[i][2].mux));
++    }
++}
++
++/* *INDENT-OFF* */
++/******************************************************************************
++ * Local Variables:
++ * mode: C
++ * c-indent-level: 4
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ * kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;
++ * vim: set expandtab filetype=c:
++ * vi: set et tabstop=4 shiftwidth=4: */
+diff --git a/board/microsys/mpxs32g274a/pinctl.h b/board/microsys/mpxs32g274a/pinctl.h
+new file mode 100644
+index 000000000000..6538477a2208
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/pinctl.h
+@@ -0,0 +1,160 @@
++/* -*-C-*- */
++/* SPDX-License-Identifier:    GPL-2.0+ */
++/*
++ * Copyright (C) 2020 MicroSys Electronics GmbH
++ *
++ */
++
++#ifndef PINCTL_H
++#define PINCTL_H
++
++#include <common.h>
++#include <asm/types.h>
++#include <asm/arch/soc.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#define L_ORD(L) ((L)-'A')
++#define l_ord(l) ((l)-'a')
++
++#define CR(L, N) (L_ORD(L)*16+(N))
++#define cr(L, N) (l_ord(L)*16+(N))
++
++#define NUM_MUX(N, M) {.num = (N),.mux = SIUL2_MSCR_MUX_MODE((M))}
++
++#define GPIO_IDX   0
++
++#define PIN_GPIO(N) [GPIO_IDX]     = NUM_MUX(N, 0)
++#define PIN_INOUT(IDX, NUM_O, MUX_O, NUM_I, MUX_I) \
++        [IDX]     = NUM_MUX(NUM_O, MUX_O), \
++        [(IDX)+1] = NUM_MUX(NUM_I, MUX_I)
++
++#define PIN_OUTPUT(IDX, NUM_O, MUX_O) \
++        [IDX]     = NUM_MUX(NUM_O, MUX_O)
++
++#define PIN_INPUT(IDX, NUM_I, MUX_I) \
++        [IDX]     = NUM_MUX(NUM_I, MUX_I)
++
++#define PIN(NAME, NUM, ...) \
++static const pin_t NAME[] = {      \
++        PIN_GPIO(NUM),      \
++        __VA_ARGS__         \
++}
++
++#define GMAC0   0
++#define PFEMAC2 1
++
++#define GPIO_IDX   0
++#define RX_CLK_O   1
++#define RX_CLK_I   2
++#define RX_DV_O    1
++#define RX_DV_I    2
++#define RX_D_O     1
++#define RX_D_I     2
++#define TX_D_O     1
++#define TX_CLK_O   1
++#define TX_EN_O    1
++#define MDIO_O     1
++#define MDIO_I     2
++#define MDC_O      1
++#define LIN_TX_O   1
++#define LIN_RX_O   1
++#define LIN_RX_I   2
++#define I2C_SDA_O  1
++#define I2C_SDA_I  2
++#define I2C_SCLK_O 1
++#define I2C_SCLK_I 2
++#define CLKOUT0    1
++#define CLKOUT1    1
++#define DSPI_SCK 1
++#define DSPI_SIN 1
++#define DSPI_SOUT 1
++#define DSPI_PCS  1
++#define CAN_TX_O 1
++#define CAN_RX_I 1
++
++    typedef struct pin_s {
++        uint32_t num;
++        uint32_t mux;
++    } pin_t;
++
++    typedef struct mac_rgmii_s {
++        const pin_t *tx_clk;
++        const pin_t *tx_en;
++        const pin_t *tx_d[4];
++        const pin_t *rx_clk;
++        const pin_t *rx_dv;
++        const pin_t *rx_d[4];
++        const pin_t *mdc;
++        const pin_t *mdio;
++    } mac_rgmii_t;
++
++    typedef struct i2c_cr_s {
++        const pin_t *sda;
++        const pin_t *sclk;
++    } i2c_cr_t;
++
++    typedef struct lin_cr_s {
++        const pin_t *tx;
++        const pin_t *rx;
++    } lin_cr_t;
++
++    typedef struct can_cr_s {
++        const pin_t *tx;
++        const pin_t *rx;
++    } can_cr_t;
++
++#define DSPI_MAX_CS 3
++#define QSPI_MAX_CS 2
++
++    typedef struct dspi_cr_s {
++        const pin_t *sck;
++        const pin_t *sin;
++        const pin_t *sout;
++        const pin_t *cs[DSPI_MAX_CS];
++    } dspi_cr_t;
++
++    typedef struct qspi_cr_s {
++        const pin_t *ck[2][2];
++        const pin_t *data[8];
++        const pin_t *cs[QSPI_MAX_CS];
++        const pin_t *dqs;
++        const pin_t *irq;
++    } qspi_cr_t;
++
++    typedef struct usb_cr_s {
++        const pin_t *clk;
++        const pin_t *dir;
++        const pin_t *stp;
++        const pin_t *nxt;
++        const pin_t *data[8];
++    } usb_cr_t;
++
++    extern void set_cr(const unsigned int cr, const uint32_t val);
++    extern void set_i2c_cr(const i2c_cr_t * const i2c);
++    extern void set_lin_cr(const lin_cr_t * const lin);
++    extern void set_can_cr(const can_cr_t * const can);
++    extern void set_rgmii_cr(const mac_rgmii_t * const gmac);
++    extern void set_usb_cr(const usb_cr_t *const usb);
++    extern void set_platform_cr(void);
++    extern void set_qspi_cr(const qspi_cr_t * const qspi);
++
++#ifdef __cplusplus
++}                               /* extern "C" */
++#endif
++#endif                          /* PINCTL_H */
++
++/* *INDENT-OFF* */
++/******************************************************************************
++ * Local Variables:
++ * mode: C
++ * c-indent-level: 4
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ * kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;
++ * vim: set expandtab filetype=c:
++ * vi: set et tabstop=4 shiftwidth=4: */
+diff --git a/board/microsys/mpxs32g274a/s32g274a.c b/board/microsys/mpxs32g274a/s32g274a.c
+new file mode 100644
+index 000000000000..1b8218a073ed
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/s32g274a.c
+@@ -0,0 +1,149 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Copyright 2019-2020 NXP
++ * Copyright (C) 2020 MicroSys Electronics GmbH
++ */
++
++#include <config.h>
++#include <asm/io.h>
++#include <asm/arch/soc.h>
++#include <s32g274a_common.h>
++
++#define SUIL2_MSCR_S32G_PAD_CTL_SPI0_CS1 \
++    (SIUL2_MSCR_S32_G1_PAD_CTL_SPI_CSx | \
++     SIUL2_MSCR_MUX_MODE_ALT5)
++
++#define SUIL2_MSCR_S32G_PAD_CTL_SPI0_CS2 \
++    (SIUL2_MSCR_S32_G1_PAD_CTL_SPI_CSx | \
++     SIUL2_MSCR_MUX_MODE_ALT3)
++
++#if defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ASBC2) \
++    || defined(CONFIG_TARGET_S32G274ACPCIS)
++
++#ifdef CONFIG_FSL_DSPI
++void setup_iomux_dspi(void)
++{
++    /* Muxing for DSPI0 */
++
++    /* Configure Chip Select Pins */
++    writel(SUIL2_MSCR_S32G_PAD_CTL_SPI0_CS1,
++           SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_09));
++
++    writel(SUIL2_MSCR_S32G_PAD_CTL_SPI0_CS2,
++           SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_10));
++
++    /* MSCR */
++    writel(SIUL2_MSCR_S32G_PAD_CTL_SPI0_SOUT,
++           SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_15));
++
++    writel(SIUL2_MSCR_S32G_PAD_CTL_SPI0_SIN,
++           SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_14));
++
++    writel(SIUL2_MSCR_S32G_PAD_CTL_SPI0_SCK,
++           SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_13));
++
++    /* IMCR */
++    writel(SIUL2_IMCR_S32G_PAD_CTL_SPI0_SIN,
++           SIUL2_1_IMCRn(SIUL2_PA_14_IMCR_S32G_SPI0_SIN));
++
++#if 0
++	/* Muxing for DSPI1 */
++
++	/* Configure Chip Select Pins */
++	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI1_CS0,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_07));
++
++	/* MSCR */
++	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SOUT,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_06));
++
++	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SIN,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PF_15));
++
++	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SCK,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_08));
++
++	/* IMCR */
++	writel(SIUL2_IMCR_S32G_PAD_CTL_SPI1_SIN,
++	       SIUL2_1_IMCRn(SIUL2_PF_15_IMCR_S32G_SPI1_SIN));
++#endif
++
++	/* Muxing for DSPI5 */
++
++	/* Configure Chip Select Pins */
++	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI5_CS0,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_12));
++
++	/* MSCR */
++	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI5_SOUT,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_11));
++
++	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI5_SIN,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_10));
++
++	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI5_SCK,
++	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_09));
++
++	/* IMCR */
++	writel(SIUL2_IMCR_S32G_PAD_CTL_SPI5_SIN,
++	       SIUL2_1_IMCRn(SIUL2_PA_10_IMCR_S32G_SPI5_SIN));
++}
++#endif
++
++#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
++void setup_iomux_sdhc(void)
++{
++	/* Set iomux PADS for USDHC */
++
++	/* PC14 pad: uSDHC SD0_CLK_O  */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_CLK, SIUL2_0_MSCRn(46));
++
++	/* PC15 pad: uSDHC SDO_CMD_0 */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_CMD, SIUL2_0_MSCRn(47));
++	writel(0x2, SIUL2_0_MSCRn(515));
++
++	/* PD00 pad: uSDHC SD0_D_O[0] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(48));
++	writel(0x2, SIUL2_0_MSCRn(516));
++
++	/* PD01 pad: uSDHC SD0_D_O[1] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(49));
++	writel(0x2, SIUL2_0_MSCRn(517));
++
++	/* PD02 pad: uSDHC SD0_D_O[2] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(50));
++	writel(0x2, SIUL2_0_MSCRn(520));
++
++	/* PD03 pad: uSDHC SD0_D_O[3] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(51));
++	writel(0x2, SIUL2_0_MSCRn(521));
++
++	/* PD04 pad: uSDHC SD0_D_O[4] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(52));
++	writel(0x2, SIUL2_0_MSCRn(522));
++
++	/* PD05 pad: uSDHC SD0_D_O[5] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(53));
++	writel(0x2, SIUL2_0_MSCRn(523));
++
++	/* PD06 pad: uSDHC SD0_D_O[6] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(54));
++	writel(0x2, SIUL2_0_MSCRn(519));
++
++	/* PD07 pad: uSDHC SD0_D_O[7] */
++	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(55));
++	writel(0x2, SIUL2_0_MSCRn(518));
++
++	/* PD08 pad: uSDHC SDO_RST */
++	writel(SIUL2_USDHC_S32_G1_PAD_RST, SIUL2_0_MSCRn(56));
++
++	/* PD10 pad: uSDHC SD0_DQS_I */
++	writel(0x2, SIUL2_0_MSCRn(524));
++}
++#else
++/* The previous-stage bootloader (TF-A) is expected to have handled this. */
++void setup_iomux_sdhc(void)
++{
++}
++#endif /* CONFIG_S32_STANDALONE_BOOT_FLOW */
++#endif
+diff --git a/board/microsys/mpxs32g274a/s32g274a_common.h b/board/microsys/mpxs32g274a/s32g274a_common.h
+new file mode 100644
+index 000000000000..d8bbde76695c
+--- /dev/null
++++ b/board/microsys/mpxs32g274a/s32g274a_common.h
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright 2020 NXP
++ *
++ */
++
++#ifndef S32G274A_COMMON_H
++#define S32G274A_COMMON_H
++
++#include <config.h>
++
++#if defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ACPCIS)
++void setup_iomux_i2c_pc01_pc02(void);
++void setup_iomux_i2c_pc05_pc06(void);
++#endif
++
++#endif /* S32G274A_COMMON_H */
+--
+2.30.2
+

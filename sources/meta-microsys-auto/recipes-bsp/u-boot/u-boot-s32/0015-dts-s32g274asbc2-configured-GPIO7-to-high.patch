@@ -1,0 +1,34 @@
+From 9cf1eabfc5b72549e19cbec19984c5b492959e63 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 12 Apr 2021 09:23:57 +0200
+Subject: [PATCH 15/38] dts: s32g274asbc2: configured GPIO7 to high
+Organization: MicroSys Electronics GmbH
+
+GPIO7 of FXL6408 at address 0x44 drives STBY_ON# of the CAN
+transceivers. In order to take the tranceivers out of sleep
+GPIO7 needs to be driven high.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/dts/s32g274asbc2.dts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/dts/s32g274asbc2.dts b/arch/arm/dts/s32g274asbc2.dts
+index 0d2dd833709f..55156abfadea 100644
+--- a/arch/arm/dts/s32g274asbc2.dts
++++ b/arch/arm/dts/s32g274asbc2.dts
+@@ -229,9 +229,9 @@
+          *
+          *        The default is 1.
+          */
+-        output-default-state = [41];
++        output-default-state = [c1];
+
+-        pull-config = [00 41]; /* pull-enable / pull-up/down */
++        pull-config = [80 c1]; /* pull-enable / pull-up/down */
+         u-boot,i2c-offset-len = <1>; /* one address byte */
+     };
+ };
+--
+2.30.2
+

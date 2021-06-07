@@ -1,0 +1,152 @@
+From 6bd566b2d4e5890b0cecf8fd939aa251a870b6e8 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 26 Apr 2021 10:16:17 +0200
+Subject: [PATCH 00/38] mpxs32g274a: added module support
+Organization: MicroSys Electronics GmbH
+
+*** BLURB HERE ***
+
+Kay Potthoff (38):
+  mpxs32g274a: added module support
+  s32g274asbc: added support for S32G274ASBC
+  s32g274acpcis: added support for S32G274ACPCIS
+  s32g274asbc2: added support for S32G274ASBC2
+  bsp28: support for S32G274ASBC,S32G274ASBC2 and S32G274ACPCIS
+  gpio: fxl6408: added driver
+  env: eeprom: fixed support for environment in I2C-EEPROM
+  net: phy: fixed PHY detection
+  phy: marvell: update to latest version
+  localversion: update to version 4.1
+  dts: fsl-s32g274a: added SerDes clocks
+  s32g274asbc2: added SJA1110 configuration
+  localversion: updated to 4.1.1
+  mpxs32g274a: added "M2" as configuration option
+  dts: s32g274asbc2: configured GPIO7 to high
+  localversion: update 4.1.2
+  dts: s32g274asbc2: removed unused pins
+  i2c: mxc_i2c: added delay until clock is stable
+  localversion: update 4.1.3
+  i2c: mxc_i2c: increased delay
+  mpxs32g274a: added delay in early init
+  localversion: update 4.1.4
+  mpxs32g274a: removed delay
+  i2c: mxc_i2c.c: removed delay
+  s32g274asbc2: Kconfig: fixed SYS_DATA_BASE
+  configs: s32g274asbc.h: fixed boot flow configuration
+  configs: s32g274asbc2: added ATF configuration
+  s32g274a: fix for QSPI on rev. 1
+  mpxs32g274a: fixes for boot with ATF
+  dts: s32g274asbc2: removed obsolete compatible
+  mpxs32g274a: added misc_init_f hook
+  dts: fsl-s32g274a.dtsi: fixed clocks for SBC2
+  mpxs32g274a: fixed DIP switch handling
+  drivers: pfeng_cmd.c: added defines for SBC rev. 1
+  s32g274asbc: fixed support for BSP28.0
+  localversion: updated to version 4.1.5
+  configs: s32g274asbc: updated QSPI configuration
+  s32g274asbc2: removed include
+
+ arch/arm/cpu/armv8/Kconfig                   |    2 +
+ arch/arm/cpu/armv8/s32/Kconfig               |   19 +
+ arch/arm/cpu/armv8/s32/fdt.c                 |    4 +-
+ arch/arm/cpu/armv8/s32/s32-gen1/cmu.c        |    3 +-
+ arch/arm/dts/Makefile                        |    9 +
+ arch/arm/dts/fsl-s32g274a.dtsi               |   20 +-
+ arch/arm/dts/s32g274acpcis.dts               |  203 +++
+ arch/arm/dts/s32g274asbc.dts                 |  402 +++++
+ arch/arm/dts/s32g274asbc2.dts                |  428 +++++
+ board/freescale/Kconfig                      |    2 +-
+ board/freescale/s32-gen1/Kconfig             |    7 +-
+ board/microsys/mpxs32g274a/board_common.h    |   33 +
+ board/microsys/mpxs32g274a/common.c          |   89 ++
+ board/microsys/mpxs32g274a/dq_swap_cfg.c     |   75 +
+ board/microsys/mpxs32g274a/eth.c             |  398 +++++
+ board/microsys/mpxs32g274a/mpxs32g274a.c     |  390 +++++
+ board/microsys/mpxs32g274a/mpxs32g274a.h     |   58 +
+ board/microsys/mpxs32g274a/pinctl.c          |  254 +++
+ board/microsys/mpxs32g274a/pinctl.h          |  160 ++
+ board/microsys/mpxs32g274a/s32g274a.c        |  149 ++
+ board/microsys/mpxs32g274a/s32g274a_common.h |   17 +
+ board/microsys/s32g274acpcis/Kconfig         |  125 ++
+ board/microsys/s32g274acpcis/Makefile        |   40 +
+ board/microsys/s32g274acpcis/pincfg.c        |  315 ++++
+ board/microsys/s32g274acpcis/pincfg.h        |   46 +
+ board/microsys/s32g274acpcis/s32-gen1.cfg    |   12 +
+ board/microsys/s32g274acpcis/s32g274acpcis.c |  137 ++
+ board/microsys/s32g274asbc/Kconfig           |  126 ++
+ board/microsys/s32g274asbc/Makefile          |   42 +
+ board/microsys/s32g274asbc/s32g274asbc.c     |   32 +
+ board/microsys/s32g274asbc2/Kconfig          |  126 ++
+ board/microsys/s32g274asbc2/Makefile         |   42 +
+ board/microsys/s32g274asbc2/s32g274asbc2.c   |   47 +
+ configs/s32g274acpcis_defconfig              | 1463 +++++++++++++++++
+ configs/s32g274acpcis_qspi_defconfig         | 1464 +++++++++++++++++
+ configs/s32g274asbc2_atf_defconfig           | 1485 +++++++++++++++++
+ configs/s32g274asbc2_defconfig               | 1485 +++++++++++++++++
+ configs/s32g274asbc2_qspi_defconfig          | 1486 ++++++++++++++++++
+ configs/s32g274asbc_defconfig                | 1485 +++++++++++++++++
+ configs/s32g274asbc_qspi_defconfig           | 1485 +++++++++++++++++
+ drivers/gpio/Kconfig                         |    7 +
+ drivers/gpio/Makefile                        |    1 +
+ drivers/gpio/fxl6408_gpio.c                  |  219 +++
+ drivers/misc/i2c_eeprom.c                    |   46 +-
+ drivers/net/Kconfig                          |    4 +-
+ drivers/net/dwc_eth_qos_s32cc.c              |   12 +
+ drivers/net/pfeng/Makefile                   |    2 +
+ drivers/net/pfeng/pfeng_cmd.c                |   54 +-
+ drivers/net/pfeng/pfeng_drv.c                |   25 +-
+ drivers/net/phy/marvell.c                    |  840 +++++++++-
+ drivers/net/phy/phy.c                        |    9 +-
+ drivers/pci/serdes_s32gen1.c                 |    8 +-
+ drivers/spi/s32gen1_qspi.c                   |    4 +-
+ env/Makefile                                 |    2 +-
+ env/eeprom.c                                 |   51 +-
+ include/configs/s32g274acpcis.h              |  164 ++
+ include/configs/s32g274asbc.h                |  166 ++
+ include/configs/s32g274asbc2.h               |   11 +
+ include/i2c_eeprom.h                         |    6 +
+ localversion-microsys                        |    1 +
+ tools/s32_common.c                           |    3 +
+ tools/s32gen1image.c                         |    6 +-
+ 62 files changed, 15761 insertions(+), 45 deletions(-)
+ create mode 100644 arch/arm/dts/s32g274acpcis.dts
+ create mode 100644 arch/arm/dts/s32g274asbc.dts
+ create mode 100644 arch/arm/dts/s32g274asbc2.dts
+ create mode 100644 board/microsys/mpxs32g274a/board_common.h
+ create mode 100644 board/microsys/mpxs32g274a/common.c
+ create mode 100644 board/microsys/mpxs32g274a/dq_swap_cfg.c
+ create mode 100644 board/microsys/mpxs32g274a/eth.c
+ create mode 100644 board/microsys/mpxs32g274a/mpxs32g274a.c
+ create mode 100644 board/microsys/mpxs32g274a/mpxs32g274a.h
+ create mode 100644 board/microsys/mpxs32g274a/pinctl.c
+ create mode 100644 board/microsys/mpxs32g274a/pinctl.h
+ create mode 100644 board/microsys/mpxs32g274a/s32g274a.c
+ create mode 100644 board/microsys/mpxs32g274a/s32g274a_common.h
+ create mode 100644 board/microsys/s32g274acpcis/Kconfig
+ create mode 100644 board/microsys/s32g274acpcis/Makefile
+ create mode 100644 board/microsys/s32g274acpcis/pincfg.c
+ create mode 100644 board/microsys/s32g274acpcis/pincfg.h
+ create mode 100644 board/microsys/s32g274acpcis/s32-gen1.cfg
+ create mode 100644 board/microsys/s32g274acpcis/s32g274acpcis.c
+ create mode 100644 board/microsys/s32g274asbc/Kconfig
+ create mode 100644 board/microsys/s32g274asbc/Makefile
+ create mode 100644 board/microsys/s32g274asbc/s32g274asbc.c
+ create mode 100644 board/microsys/s32g274asbc2/Kconfig
+ create mode 100644 board/microsys/s32g274asbc2/Makefile
+ create mode 100644 board/microsys/s32g274asbc2/s32g274asbc2.c
+ create mode 100644 configs/s32g274acpcis_defconfig
+ create mode 100644 configs/s32g274acpcis_qspi_defconfig
+ create mode 100644 configs/s32g274asbc2_atf_defconfig
+ create mode 100644 configs/s32g274asbc2_defconfig
+ create mode 100644 configs/s32g274asbc2_qspi_defconfig
+ create mode 100644 configs/s32g274asbc_defconfig
+ create mode 100644 configs/s32g274asbc_qspi_defconfig
+ create mode 100644 drivers/gpio/fxl6408_gpio.c
+ create mode 100644 include/configs/s32g274acpcis.h
+ create mode 100644 include/configs/s32g274asbc.h
+ create mode 100644 include/configs/s32g274asbc2.h
+ create mode 100644 localversion-microsys
+
+--
+2.30.2
+

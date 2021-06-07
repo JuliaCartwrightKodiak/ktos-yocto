@@ -1,0 +1,29 @@
+From 1cb9eee14104e5db63a89cedbc089fd94b6f15dc Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 14 Apr 2021 13:01:32 +0200
+Subject: [PATCH 20/38] i2c: mxc_i2c: increased delay
+Organization: MicroSys Electronics GmbH
+
+Increased delay when waiting for clocks.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/i2c/mxc_i2c.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/i2c/mxc_i2c.c b/drivers/i2c/mxc_i2c.c
+index bb75ef46f7c5..9dfc5b42c3e5 100644
+--- a/drivers/i2c/mxc_i2c.c
++++ b/drivers/i2c/mxc_i2c.c
+@@ -933,7 +933,7 @@ static int mxc_i2c_probe(struct udevice *bus)
+ 		return ret;
+ #endif
+
+-    udelay(1*1000); // wait until clock is stable
++    udelay(5*1000); // wait until clock is stable
+
+ 	/*
+ 	 * See Documentation/devicetree/bindings/i2c/i2c-imx.txt
+--
+2.30.2
+

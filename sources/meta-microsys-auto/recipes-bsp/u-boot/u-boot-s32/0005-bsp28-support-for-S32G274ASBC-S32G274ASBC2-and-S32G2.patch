@@ -1,0 +1,458 @@
+From 8bcda93652bcfa6a7d461df8e1cc739923f8b509 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Tue, 16 Mar 2021 14:11:19 +0100
+Subject: [PATCH 05/38] bsp28: support for S32G274ASBC,S32G274ASBC2 and
+ S32G274ACPCIS
+Organization: MicroSys Electronics GmbH
+
+Patched support for S32G274ASBC, S32G274ASBC2 and S32G274ACPCIS
+into BSP28.0 U-Boot 2020.04.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm/cpu/armv8/Kconfig       |  2 ++
+ arch/arm/cpu/armv8/s32/Kconfig   | 19 +++++++++++
+ arch/arm/cpu/armv8/s32/fdt.c     |  4 ++-
+ arch/arm/dts/Makefile            |  9 ++++++
+ board/freescale/Kconfig          |  2 +-
+ board/freescale/s32-gen1/Kconfig |  7 +++--
+ drivers/net/Kconfig              |  4 +--
+ drivers/net/dwc_eth_qos_s32cc.c  | 12 +++++++
+ drivers/net/pfeng/Makefile       |  2 ++
+ drivers/net/pfeng/pfeng_cmd.c    | 54 +++++++++++++++++++++++++++++---
+ drivers/net/pfeng/pfeng_drv.c    | 25 ++++++++++++---
+ drivers/pci/serdes_s32gen1.c     |  8 ++---
+ drivers/spi/s32gen1_qspi.c       |  4 ++-
+ tools/s32_common.c               |  3 ++
+ 14 files changed, 136 insertions(+), 19 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/Kconfig b/arch/arm/cpu/armv8/Kconfig
+index aa00a0574974..3800b977fbd9 100644
+--- a/arch/arm/cpu/armv8/Kconfig
++++ b/arch/arm/cpu/armv8/Kconfig
+@@ -117,6 +117,8 @@ config PSCI_RESET
+ 		   !TARGET_CAMPPS32V2 && \
+ 		   !TARGET_S32G274AEVB && \
+ 		   !TARGET_S32G274ARDB && \
++                   !TARGET_S32G274ASBC && !TARGET_S32G274ASBC2 && \
++                   !TARGET_S32G274ACPCIS && \
+ 		   !TARGET_S32R45EVB && \
+ 		   !TARGET_TYPE_S32GEN1_EMULATOR && \
+ 		   !TARGET_TYPE_S32GEN1_SIMULATOR
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index f1d098ff718b..788cdebd6537 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -57,6 +57,22 @@ config TARGET_CAMPPS32V2
+ 	  Enable Camera card V2 target.
+ 	  Camera card V2 is a developemnt board with 6x S32V.
+
++config TARGET_S32G274ASBC
++    bool "Support s32g274asbc"
++    select NXP_S32G2XX
++    help
++      S32G274ASBC Revision 1
++
++config TARGET_S32G274ASBC2
++    bool "Support s32g274asbc2"
++    select NXP_S32G2XX
++    help
++      S32G274ASBC Revision 2
++
++config TARGET_S32G274ACPCIS
++    bool "Support s32g274acpcis"
++    select NXP_S32G2XX
++
+ config TARGET_S32R45EVB
+ 	bool "Support s32r45evb"
+ 	select NXP_S32R45
+@@ -179,5 +195,8 @@ config DDR_HANDSHAKE_AT_RESET
+
+ source "board/freescale/Kconfig"
+ source "board/microsys/mpxs32v234/Kconfig"
++source "board/microsys/s32g274asbc/Kconfig"
++source "board/microsys/s32g274asbc2/Kconfig"
++source "board/microsys/s32g274acpcis/Kconfig"
+
+ endif
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index 2596df22482b..2ab7092b1735 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -16,7 +16,9 @@
+
+ #define ID_TO_CORE(ID)	(((ID) & 3) | ((ID) >> 7))
+
+-#if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB)
++#if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB) \
++    || defined(CONFIG_TARGET_S32G274ASBC) || defined(CONFIG_TARGET_S32G274ASBC2) \
++    || defined(CONFIG_TARGET_S32G274ACPCIS)
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #endif
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 642d98548440..08b54a26690c 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -922,6 +922,15 @@ dtb-$(CONFIG_TARGET_DURIAN) += phytium-durian.dtb
+
+ dtb-$(CONFIG_TARGET_PRESIDIO_ASIC) += ca-presidio-engboard.dtb
+
++dtb-$(CONFIG_TARGET_S32G274ASBC) += \
++	s32g274asbc.dtb
++
++dtb-$(CONFIG_TARGET_S32G274ASBC2) += \
++	s32g274asbc2.dtb
++
++dtb-$(CONFIG_TARGET_S32G274ACPCIS) += \
++	s32g274acpcis.dtb
++
+ targets += $(dtb-y)
+
+ # Add any required device tree compiler flags here
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index e84ed78b656a..4a1d188dbaa9 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -41,7 +41,7 @@ config S32_SKIP_RELOC
+ 		memory. It's very useful for bring-up activities or when the DDR
+ 		memory is not stable.
+
+-if !TARGET_MPXS32V234
++if !TARGET_MPXS32V234 && !TARGET_S32G274ASBC && !TARGET_S32G274ASBC2 && !TARGET_S32G274ACPCIS
+ config SYS_VENDOR
+ 	string
+ 	default "freescale"
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index fa4228f0db04..70d2acf5f4ec 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -46,11 +46,11 @@ if S32_GEN1
+
+ config SYS_BOARD
+ 	string
+-	default "s32-gen1"
++	default "s32-gen1" if !TARGET_S32G274ASBC && !TARGET_S32G274ASBC2 && !TARGET_S32G274ACPCIS
+
+ config SYS_CONFIG_NAME
+ 	string
+-	default "s32g274a" if NXP_S32G2XX
++	default "s32g274a" if NXP_S32G2XX && (!TARGET_S32G274ASBC && !TARGET_S32G274ASBC2 && !TARGET_S32G274ACPCIS)
+ 	default "s32r45" if NXP_S32R45
+
+ config SYS_ERRATUM_ERR050543
+@@ -116,6 +116,9 @@ config S32GEN1_HWCONFIG
+ 	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=2G5" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ARDB
+ 	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274AEVB
+ 	default "pcie0:mode=ep,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ABLUEBOX3
++	default "pcie0:mode=rc,clock=ext,fmhz=100;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=both" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ASBC
++    default "pcie0:mode=rc,clock=ext,fmhz=100;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=both" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ASBC2
++	default "pcie0:mode=rc,clock=ext,fmhz=100;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=both" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ACPCIS
+ 	default "pcie0:mode=sgmii;pcie1:mode=sgmii" if (!PCIE_S32GEN1 && FSL_PFENG)
+ 	default "pcie0:mode=rc,clock=ext;pcie1:mode=ep,clock=int" if (PCIE_S32GEN1 && !FSL_PFENG)
+ 	default ""
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index 4d68e2290661..d714972af3a7 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -120,7 +120,7 @@ config FSL_PFENG_FW_PART
+
+ config FSL_PFENG_EMAC_0_RGMII
+ 	bool "Allow RGMII on PFE EMAC_0"
+-	depends on TARGET_S32G274AEVB || TARGET_S32G274ARDB
++	depends on TARGET_S32G274AEVB || TARGET_S32G274ARDB || TARGET_S32G274ASBC || TARGET_S32G274ASBC2 || TARGET_S32G274ACPCIS
+ 	default n
+ 	help
+ 	  PFE EMAC_0 and EMAC_2 share RGMII interface on S32G-VNP-PROC
+@@ -129,7 +129,7 @@ config FSL_PFENG_EMAC_0_RGMII
+
+ config FSL_PFENG_EMAC_1_RGMII
+ 	bool "Allow RGMII on PFE EMAC 1"
+-	depends on TARGET_S32G274AEVB || TARGET_S32G274ARDB
++	depends on TARGET_S32G274AEVB || TARGET_S32G274ARDB || TARGET_S32G274ASBC || TARGET_S32G274ASBC2 || TARGET_S32G274ACPCIS
+ 	default n
+ 	help
+ 	  PFE EMAC_1 and GMAC share RGMII interface on S32G-VNP-PROC
+diff --git a/drivers/net/dwc_eth_qos_s32cc.c b/drivers/net/dwc_eth_qos_s32cc.c
+index 59b560f9e6e4..621038d95822 100644
+--- a/drivers/net/dwc_eth_qos_s32cc.c
++++ b/drivers/net/dwc_eth_qos_s32cc.c
+@@ -271,6 +271,18 @@ static int check_sgmii_cfg(int gmac_no)
+ 	desired_mode1 = SGMII_XPCS0;
+ 	desired_mode2 = SGMII_XPCS0_2G5;
+
++#elif defined(CONFIG_TARGET_S32G274ASBC) \
++    || defined(CONFIG_TARGET_S32G274ACPCIS)
++
++    desired_mode1 = SGMII_INAVALID;
++    desired_mode2 = SGMII_XPCS0_XPCS1;
++
++#elif defined(CONFIG_TARGET_S32G274ASBC2)
++
++    desired_mode1 = SGMII_XPCS1;
++    desired_mode2 = SGMII_INAVALID;
++    xpcs = 1;
++
+ #else
+ #error "Board not supported"
+ #endif
+diff --git a/drivers/net/pfeng/Makefile b/drivers/net/pfeng/Makefile
+index 7c5533915fae..568f58fd1aaa 100644
+--- a/drivers/net/pfeng/Makefile
++++ b/drivers/net/pfeng/Makefile
+@@ -30,3 +30,5 @@ ccflags-y += -Idrivers/net/pfeng/hw_abi
+ ccflags-y += -Wno-date-time
+ ccflags-y += -I./arch/arm/include/asm/arch-s32/s32-gen1
+ ccflags-y += -I./drivers/clk/s32/include
++
++ccflags-y += -I./board/$(BOARDDIR)
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index 0c56d6a5264c..9d8dc3e345bb 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -27,6 +27,8 @@
+
+ #include "pfeng.h"
+
++#include <../mpxs32g274a/mpxs32g274a.h>
++
+ static u32 emac_intf[PFENG_EMACS_COUNT] = {
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB)
+ 	PHY_INTERFACE_MODE_SGMII, /* ARQ107 on PROC board */
+@@ -43,6 +45,21 @@ static u32 emac_intf[PFENG_EMACS_COUNT] = {
+ 	PHY_INTERFACE_MODE_NONE, /* disabled */
+ 	PHY_INTERFACE_MODE_NONE  /* disabled */
+ #endif
++#if CONFIG_IS_ENABLED(TARGET_S32G274ASBC)
++    PHY_INTERFACE_MODE_SGMII, /* PFE_MAC0: SGMII */
++    PHY_INTERFACE_MODE_SGMII, /* PFE_MAC1: SGMII */
++    PHY_INTERFACE_MODE_RGMII  /* PFE_MAC2: RGMII */
++#endif
++#if CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
++    PHY_INTERFACE_MODE_NONE,  /* PCIe1_X1        */
++    PHY_INTERFACE_MODE_RGMII, /* PFE_MAC1: RGMII */
++    PHY_INTERFACE_MODE_RGMII  /* PFE_MAC2: RGMII */
++#endif
++#if CONFIG_IS_ENABLED(TARGET_S32G274ACPCIS)
++    PHY_INTERFACE_MODE_SGMII, /* PFE_MAC0: SGMII */
++    PHY_INTERFACE_MODE_SGMII, /* PFE_MAC1: SGMII */
++    PHY_INTERFACE_MODE_RGMII  /* PFE_MAC2: RGMII */
++#endif
+ };
+
+ static u32 pfeng_mode = PFENG_MODE_DISABLE;
+@@ -164,6 +181,10 @@ int pfeng_map_emac_to_serdes_xpcs(int emac, int *serdes, int *xpcs)
+ 		return -ENXIO;
+ 	}
+
++	if (emac_intf[emac] == PHY_INTERFACE_MODE_RGMII) {
++	    return -ENXIO;
++	}
++
+ 	if ((mac_serdes == 0 && emac == 2) ||
+ 	    (mac_serdes == 1 && emac == 1)) {
+ 		switch (mode) {
+@@ -181,6 +202,9 @@ int pfeng_map_emac_to_serdes_xpcs(int emac, int *serdes, int *xpcs)
+ 		case SGMII_XPCS0_2G5:
+ 			*xpcs = 0;
+ 			break;
++        case SGMII_XPCS1:
++            *xpcs = 1;
++            break;
+ 		default:
+ 			return -ENXIO;
+ 		}
+@@ -265,9 +289,26 @@ static void set_pfe_mac0_clk(int intf0, struct udevice *pfe_dev)
+ 	switch (intf0) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 		switch_pfe0_clock(PHY_INTERFACE_MODE_SGMII);
++#if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
++		{
++		    const serdes_t serdes_sel = get_serdes_sel();
++		    switch (serdes_sel) {
++		    case SERDES_2G5:
+ 		        rx = "mac0_rx_sgmii";
+ 		        tx = "mac0_tx_sgmii";
+ 		        break;
++		    case SERDES_M2:
++		    default:
++		        rx = "mac0_rx1_sgmii";
++		        tx = "mac0_tx1_sgmii";
++		        break;
++		    }
++		}
++#else
++		rx = "mac0_rx_sgmii";
++		tx = "mac0_tx_sgmii";
++#endif
++		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+@@ -309,7 +350,8 @@ static void set_pfe_mac1_clk(int intf1, struct udevice *pfe_dev)
+ 		tx = "mac1_tx_sgmii";
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+-#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
++#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
++        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+ 		rx = "mac1_rx_rgmii";
+ 		tx = "mac1_tx_rgmii";
+@@ -351,7 +393,9 @@ static void set_pfe_mac2_clk(int intf2, struct udevice *pfe_dev)
+ 		tx = "mac2_tx_sgmii";
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+-#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
++#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
++    || CONFIG_IS_ENABLED(TARGET_S32G274ASBC) || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2) \
++    || CONFIG_IS_ENABLED(TARGET_S32G274ACPCIS)
+ #if !CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		rx = "mac2_rx_rgmii";
+ 		tx = "mac2_tx_rgmii";
+@@ -455,7 +499,8 @@ static void setup_iomux_pfe(struct udevice *dev,
+ 		break;
+
+ 	case PHY_INTERFACE_MODE_RGMII:
+-#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
++#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
++        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+ 		pinctrl_select_state(dev, "pfe1_rgmii");
+ #endif
+@@ -482,7 +527,8 @@ static void setup_iomux_pfe(struct udevice *dev,
+ 		break;
+
+ 	case PHY_INTERFACE_MODE_RGMII:
+-#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
++#if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
++        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
+ #if !CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		pinctrl_select_state(dev, "pfe2_rgmii");
+ #endif
+diff --git a/drivers/net/pfeng/pfeng_drv.c b/drivers/net/pfeng/pfeng_drv.c
+index 7703813bdf00..87748223173a 100644
+--- a/drivers/net/pfeng/pfeng_drv.c
++++ b/drivers/net/pfeng/pfeng_drv.c
+@@ -87,13 +87,27 @@ exit:
+ #endif /* FSL_PFENG_FW_LOC_SDCARD */
+
+ #if CONFIG_IS_ENABLED(FSL_PFENG_FW_LOC_QSPI)
+-static int setup_flash_device(struct spi_flash **flash)
++static int setup_flash_device(struct spi_flash **flash, const char *const part)
+ {
+ 	struct udevice *new;
+ 	int	ret;
++	unsigned int bus = CONFIG_ENV_SPI_BUS, cs = CONFIG_ENV_SPI_BUS;
++
++	if (part) { // format "bus:cs"
++	    char *const fw_part = strdup(part);
++	    char *p = strchr(fw_part, ':');
++
++	    if (p) {
++	        *p = '\0';
++	        bus = strtoul(fw_part, NULL, 10);
++	        p++;
++	        if (*p)
++	            cs = strtoul(p, NULL, 10);
++	    }
++	}
+
+ 	/* Use default QSPI device. Speed and mode will be read from DT */
+-	ret = spi_flash_probe_bus_cs(CONFIG_ENV_SPI_BUS, CONFIG_ENV_SPI_CS,
++	ret = spi_flash_probe_bus_cs(bus, cs,
+ 				     CONFIG_ENV_SPI_MAX_HZ, CONFIG_ENV_SPI_MODE,
+ 				     &new);
+ 	if (ret) {
+@@ -173,9 +187,12 @@ static int pfeng_fw_load(char *fname, char *iface, const char *part, int ftype,
+ 	unsigned long qspi_addr;
+ 	size_t elf_size;
+
+-	qspi_addr = simple_strtoul(part, NULL, 16);
++	qspi_addr = simple_strtoul(fname, NULL, 16);
++
++	printf("%s: fname=%s iface=%s part=%s ftype=%d qspi_addr=0x%04lx\n", __func__,
++	        fname, iface, part, ftype, qspi_addr);
+
+-	ret = setup_flash_device(&flash);
++	ret = setup_flash_device(&flash, part);
+ 	if (ret)
+ 		goto exit;
+
+diff --git a/drivers/pci/serdes_s32gen1.c b/drivers/pci/serdes_s32gen1.c
+index d7aaa7405413..6affdaa66238 100644
+--- a/drivers/pci/serdes_s32gen1.c
++++ b/drivers/pci/serdes_s32gen1.c
+@@ -411,7 +411,7 @@ __weak int s32_eth_xpcs_init(void __iomem *dbi, int id,
+ 	return -ENODEV;
+ }
+
+-enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id)
++__weak enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id)
+ {
+ 	char pcie_name[10];
+ 	sprintf(pcie_name, "pcie%d", id);
+@@ -434,7 +434,7 @@ enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id)
+ 	return devtype;
+ }
+
+-enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id)
++__weak enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id)
+ {
+ 	char pcie_name[10];
+
+@@ -454,7 +454,7 @@ enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id)
+ 	return xpcs_mode;
+ }
+
+-enum serdes_clock s32_serdes_get_clock_from_hwconfig(int id)
++__weak enum serdes_clock s32_serdes_get_clock_from_hwconfig(int id)
+ {
+ 	char pcie_name[10];
+
+@@ -469,7 +469,7 @@ enum serdes_clock s32_serdes_get_clock_from_hwconfig(int id)
+ 	return clk;
+ }
+
+-enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
++__weak enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
+ {
+ 	char pcie_name[10];
+
+diff --git a/drivers/spi/s32gen1_qspi.c b/drivers/spi/s32gen1_qspi.c
+index 6a6fa5538143..58a631c67be8 100644
+--- a/drivers/spi/s32gen1_qspi.c
++++ b/drivers/spi/s32gen1_qspi.c
+@@ -834,7 +834,9 @@ static int enable_ddr(struct fsl_qspi_priv *priv)
+ 	mcr &= ~QSPI_MCR_MDIS_MASK;
+ 	qspi_write32(priv->flags, &regs->mcr, mcr);
+
+-#if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB)
++#if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB) \
++        || defined(CONFIG_TARGET_S32G274ASBC)|| defined(CONFIG_TARGET_S32G274ASBC2) \
++        || defined(CONFIG_TARGET_S32G274ACPCIS)
+ 	if (is_s32gen1_soc_rev1())
+ 		ddr_config.dllcr &= ~QSPI_DLLCR_FREQEN_EN;
+ #endif
+diff --git a/tools/s32_common.c b/tools/s32_common.c
+index dd23a6b62c0d..900c71bbac3b 100644
+--- a/tools/s32_common.c
++++ b/tools/s32_common.c
+@@ -64,6 +64,8 @@ void s32_compute_dyn_offsets(struct image_comp **parts, size_t n_parts)
+
+ void s32_check_env_overlap(size_t image_size)
+ {
++#if !defined(CONFIG_TARGET_S32G274ASBC) && !defined(CONFIG_TARGET_S32G274ASBC2) \
++    && !defined(CONFIG_TARGET_S32G274ACPCIS)
+ #ifdef CONFIG_ENV_OFFSET
+ 	if (image_size > CONFIG_ENV_OFFSET) {
+ 		fprintf(stderr, "This image of size 0x%x would be overwritten"
+@@ -73,4 +75,5 @@ void s32_check_env_overlap(size_t image_size)
+ 		exit(EXIT_FAILURE);
+ 	}
+ #endif
++#endif
+ }
+--
+2.30.2
+

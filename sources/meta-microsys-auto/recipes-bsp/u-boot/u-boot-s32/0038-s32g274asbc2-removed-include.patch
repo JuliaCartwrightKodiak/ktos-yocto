@@ -1,0 +1,28 @@
+From 6bd566b2d4e5890b0cecf8fd939aa251a870b6e8 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 26 Apr 2021 10:15:32 +0200
+Subject: [PATCH 38/38] s32g274asbc2: removed include
+Organization: MicroSys Electronics GmbH
+
+Removed obsolete include pincfg.h
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/s32g274asbc2/s32g274asbc2.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/board/microsys/s32g274asbc2/s32g274asbc2.c b/board/microsys/s32g274asbc2/s32g274asbc2.c
+index 802203d585e5..ad27e3f08f7f 100644
+--- a/board/microsys/s32g274asbc2/s32g274asbc2.c
++++ b/board/microsys/s32g274asbc2/s32g274asbc2.c
+@@ -11,7 +11,6 @@
+ #include <phy.h>
+ #include <i2c.h>
+
+-#include "pincfg.h"
+ #include "mpxs32g274a.h"
+
+ int last_stage_init(void)
+--
+2.30.2
+

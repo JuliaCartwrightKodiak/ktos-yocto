@@ -1,0 +1,23 @@
+From c0da17585929339b7b3aae08ec1cabbf220fec5e Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 24 Mar 2021 08:56:21 +0100
+Subject: [PATCH 13/38] localversion: updated to 4.1.1
+Organization: MicroSys Electronics GmbH
+
+Updated U-Boot localversion to 4.1.1
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ localversion-microsys | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/localversion-microsys b/localversion-microsys
+index d05396e6763e..97e1acde32ad 100644
+--- a/localversion-microsys
++++ b/localversion-microsys
+@@ -1 +1 @@
+--4.1
++-4.1.1
+--
+2.30.2
+

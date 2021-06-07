@@ -1,0 +1,30 @@
+From 90102f73e4cdfff4820e1b67dccc6d8d0df6b6f8 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 17 Mar 2021 10:07:14 +0100
+Subject: [PATCH 04/19] s32g274a: added make of devicetrees
+Organization: MicroSys Electronics GmbH
+
+Added build of device trees for S32G274ASBC, S32G274ASBC2
+and S32G274ACPCIS.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm64/boot/dts/freescale/Makefile | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/Makefile b/arch/arm64/boot/dts/freescale/Makefile
+index 813d79c2501a..ea5b275980db 100644
+--- a/arch/arm64/boot/dts/freescale/Makefile
++++ b/arch/arm64/boot/dts/freescale/Makefile
+@@ -55,4 +55,7 @@ dtb-$(CONFIG_ARCH_S32) += fsl-s32r45-emu.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32r45-evb.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-ccpb.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234sbc.dtb
+-
++dtb-$(CONFIG_ARCH_S32) += s32g274asbc.dtb
++dtb-$(CONFIG_ARCH_S32) += s32g274acpcis.dtb
++dtb-$(CONFIG_ARCH_S32) += s32g274asbc2_m2.dtb
++dtb-$(CONFIG_ARCH_S32) += s32g274asbc2_2g5.dtb
+--
+2.30.2
+

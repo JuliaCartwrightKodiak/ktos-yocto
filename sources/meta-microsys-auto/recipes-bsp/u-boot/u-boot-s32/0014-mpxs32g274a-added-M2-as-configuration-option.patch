@@ -1,0 +1,30 @@
+From 777c1b7572eb11ceb805d520d33e5a7f4e6b170e Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 12 Apr 2021 09:20:26 +0200
+Subject: [PATCH 14/38] mpxs32g274a: added "M2" as configuration option
+Organization: MicroSys Electronics GmbH
+
+Added "M2" as additional option as an alternative to "both".
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ board/microsys/mpxs32g274a/mpxs32g274a.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/board/microsys/mpxs32g274a/mpxs32g274a.c b/board/microsys/mpxs32g274a/mpxs32g274a.c
+index 0e3bafeb10d3..05a1c4c6f828 100644
+--- a/board/microsys/mpxs32g274a/mpxs32g274a.c
++++ b/board/microsys/mpxs32g274a/mpxs32g274a.c
+@@ -307,6 +307,9 @@ enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id)
+
+ #if CONFIG_IS_ENABLED(CARRIER_CRXS32G2)
+
++    if (hwconfig_subarg_cmp(pcie_name, "xpcs_mode", "M2"))
++        xpcs_mode = SGMII_XPCS0_XPCS1;
++
+     if (id == 0) {
+         xpcs_mode = SGMII_XPCS1;
+     }
+--
+2.30.2
+

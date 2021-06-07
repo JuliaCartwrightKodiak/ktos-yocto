@@ -1,0 +1,79 @@
+From 7a74d6c64556a86f053a7be5f0f76fa7828c04da Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 17 Mar 2021 10:27:14 +0100
+Subject: [PATCH 07/19] net: phy: fixed IRQ handling
+Organization: MicroSys Electronics GmbH
+
+Scheduled IRQ handling to a worker thread, because it can happen
+that IRQs are issued when checking IRQ status.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/net/phy/phy.c | 29 +++++++++++++----------------
+ 1 file changed, 13 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/net/phy/phy.c b/drivers/net/phy/phy.c
+index 92a05fc96e84..38f55a4e3378 100644
+--- a/drivers/net/phy/phy.c
++++ b/drivers/net/phy/phy.c
+@@ -757,11 +757,17 @@ static irqreturn_t phy_change(struct phy_device *phydev)
+ 				goto phy_err;
+ 	}
+
++	if (phydev->drv->handle_interrupt) {
++	    if (phydev->drv->handle_interrupt(phydev))
++	        goto phy_err;
++	} else {
+ 	    /* reschedule state queue work to run as soon as possible */
+ 	    phy_trigger_machine(phydev);
++	}
+
+ 	if (phy_interrupt_is_valid(phydev) && phy_clear_interrupt(phydev))
+ 		goto phy_err;
++
+ 	return IRQ_HANDLED;
+
+ phy_err:
+@@ -779,6 +785,8 @@ void phy_change_work(struct work_struct *work)
+ 		container_of(work, struct phy_device, phy_queue);
+
+ 	phy_change(phydev);
++
++	enable_irq(phydev->irq);
+ }
+
+ /**
+@@ -792,25 +800,14 @@ static irqreturn_t phy_interrupt(int irq, void *phy_dat)
+ {
+ 	struct phy_device *phydev = phy_dat;
+
+-	if (phydev->drv->did_interrupt && !phydev->drv->did_interrupt(phydev))
+-		return IRQ_NONE;
++	if (PHY_HALTED == phydev->state)
++		return IRQ_NONE;		/* It can't be ours.  */
+
+-	if (phydev->drv->handle_interrupt) {
+-		if (phydev->drv->handle_interrupt(phydev))
+-			goto phy_err;
+-	} else {
+-		/* reschedule state queue work to run as soon as possible */
+-		phy_trigger_machine(phydev);
+-	}
++	disable_irq_nosync(irq);
+
+-	/* did_interrupt() may have cleared the interrupt already */
+-	if (!phydev->drv->did_interrupt && phy_clear_interrupt(phydev))
+-		goto phy_err;
+-	return IRQ_HANDLED;
++	schedule_work(&phydev->phy_queue);
+
+-phy_err:
+-	phy_error(phydev);
+-	return IRQ_NONE;
++	return IRQ_HANDLED;
+ }
+
+ /**
+--
+2.30.2
+

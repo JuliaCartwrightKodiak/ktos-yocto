@@ -1,0 +1,101 @@
+From a3cd61067fd102e8cb72bd67d9ca3520ebd811ee Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Mon, 12 Apr 2021 10:23:17 +0200
+Subject: [PATCH 13/19] dts: s32g274asbc2: configured GPIO7 to high
+Organization: MicroSys Electronics GmbH
+
+GPIO7 of FXL6408 at address 0x44 drives STBY_ON# of the CAN
+transceivers. In order to take the tranceivers out of sleep
+GPIO7 needs to be driven high.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ arch/arm64/boot/dts/freescale/s32g274asbc2_2g5.dts | 7 ++++++-
+ arch/arm64/boot/dts/freescale/s32g274asbc2_m2.dts  | 7 ++++++-
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/s32g274asbc2_2g5.dts b/arch/arm64/boot/dts/freescale/s32g274asbc2_2g5.dts
+index 66d8a58ea3cd..f434147b051a 100644
+--- a/arch/arm64/boot/dts/freescale/s32g274asbc2_2g5.dts
++++ b/arch/arm64/boot/dts/freescale/s32g274asbc2_2g5.dts
+@@ -504,7 +504,8 @@
+         reg = <0x44>;
+         direction = [c1];
+         input-default-state = [00];
+-        pull-config = [00 41]; /* pull-enable / pull-up/down */
++        output-default-state = [c1];
++        pull-config = [80 c1]; /* pull-enable / pull-up/down */
+     };
+ };
+
+@@ -634,6 +635,7 @@
+         };
+
+         /* GMAC0_MDIO: */
++        /*
+         pinctrl0_mdio_c: mdiocgrp {
+             fsl,pins = <
+                 S32_GEN1_PAD_PD12__GMAC0_MDC
+@@ -641,8 +643,10 @@
+                 S32_GEN1_PAD_PD13__GMAC0_MDIO_IN
+             >;
+         };
++        */
+
+         /* GMAC0: */
++        /*
+         pinctrl0_rgmii_c: rgmiicgrp {
+             fsl,pins = <
+                 S32_GEN1_PAD_PE2__GMAC0_TXCLK_OUT
+@@ -667,6 +671,7 @@
+             >;
+
+         };
++        */
+
+         pinctrl0_pfe2_mdio: pfe2mdiocgrp {
+             fsl,pins = <
+diff --git a/arch/arm64/boot/dts/freescale/s32g274asbc2_m2.dts b/arch/arm64/boot/dts/freescale/s32g274asbc2_m2.dts
+index 4f4f1c1b1c00..8e10be787a6d 100644
+--- a/arch/arm64/boot/dts/freescale/s32g274asbc2_m2.dts
++++ b/arch/arm64/boot/dts/freescale/s32g274asbc2_m2.dts
+@@ -504,7 +504,8 @@
+         reg = <0x44>;
+         direction = [c1];
+         input-default-state = [00];
+-        pull-config = [00 41]; /* pull-enable / pull-up/down */
++        output-default-state = [c1];
++        pull-config = [80 c1]; /* pull-enable / pull-up/down */
+     };
+ };
+
+@@ -634,6 +635,7 @@
+         };
+
+         /* GMAC0_MDIO: */
++        /*
+         pinctrl0_mdio_c: mdiocgrp {
+             fsl,pins = <
+                 S32_GEN1_PAD_PD12__GMAC0_MDC
+@@ -641,8 +643,10 @@
+                 S32_GEN1_PAD_PD13__GMAC0_MDIO_IN
+             >;
+         };
++        */
+
+         /* GMAC0: */
++        /*
+         pinctrl0_rgmii_c: rgmiicgrp {
+             fsl,pins = <
+                 S32_GEN1_PAD_PE2__GMAC0_TXCLK_OUT
+@@ -667,6 +671,7 @@
+             >;
+
+         };
++        */
+
+         pinctrl0_pfe2_mdio: pfe2mdiocgrp {
+             fsl,pins = <
+--
+2.30.2
+

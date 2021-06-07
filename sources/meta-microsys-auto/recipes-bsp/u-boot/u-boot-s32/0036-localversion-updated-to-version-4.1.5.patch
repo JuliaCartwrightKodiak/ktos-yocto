@@ -1,0 +1,23 @@
+From 9d3c7b5ab8fc24d1f6480e5e738957f48fd2ee24 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 09:59:31 +0200
+Subject: [PATCH 36/38] localversion: updated to version 4.1.5
+Organization: MicroSys Electronics GmbH
+
+Update to version 4.1.5
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ localversion-microsys | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/localversion-microsys b/localversion-microsys
+index 19a5e57e2a5b..ce53324b8246 100644
+--- a/localversion-microsys
++++ b/localversion-microsys
+@@ -1 +1 @@
+--4.1.4
++-4.1.5
+--
+2.30.2
+

@@ -1,0 +1,28 @@
+From 30758891ae68a570752e9b862429c9ea5dca38ab Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Wed, 17 Mar 2021 10:27:42 +0100
+Subject: [PATCH 08/19] phy: marvell10g: added XGMII support
+Organization: MicroSys Electronics GmbH
+
+NXP's Layerscape CPUs use XGMII as interface mode.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/net/phy/marvell10g.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/phy/marvell10g.c b/drivers/net/phy/marvell10g.c
+index 3b99882692e3..c1f705c24994 100644
+--- a/drivers/net/phy/marvell10g.c
++++ b/drivers/net/phy/marvell10g.c
+@@ -279,6 +279,7 @@ static int mv3310_config_init(struct phy_device *phydev)
+ 	/* Check that the PHY interface type is compatible */
+ 	if (phydev->interface != PHY_INTERFACE_MODE_SGMII &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_2500BASEX &&
++	    phydev->interface != PHY_INTERFACE_MODE_XGMII &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_XAUI &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_RXAUI &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_10GKR)
+--
+2.30.2
+

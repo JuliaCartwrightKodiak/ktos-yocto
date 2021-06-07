@@ -1,0 +1,47 @@
+From 71dc78cf3188bc18a7838729a6157abc76171306 Mon Sep 17 00:00:00 2001
+From: Kay Potthoff <Kay.Potthoff@microsys.de>
+Date: Fri, 23 Apr 2021 09:39:07 +0200
+Subject: [PATCH 34/38] drivers: pfeng_cmd.c: added defines for SBC rev. 1
+Organization: MicroSys Electronics GmbH
+
+Added configuration for SBC rev. 1.
+
+Signed-off-by: Kay Potthoff <Kay.Potthoff@microsys.de>
+---
+ drivers/net/pfeng/pfeng_cmd.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index 9d8dc3e345bb..4f968ed34383 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -351,7 +351,7 @@ static void set_pfe_mac1_clk(int intf1, struct udevice *pfe_dev)
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
+-        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
++        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC) || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+ 		rx = "mac1_rx_rgmii";
+ 		tx = "mac1_tx_rgmii";
+@@ -500,7 +500,7 @@ static void setup_iomux_pfe(struct udevice *dev,
+
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
+-        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
++        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC) || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+ 		pinctrl_select_state(dev, "pfe1_rgmii");
+ #endif
+@@ -528,7 +528,7 @@ static void setup_iomux_pfe(struct udevice *dev,
+
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB) \
+-        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
++        || CONFIG_IS_ENABLED(TARGET_S32G274ASBC) || CONFIG_IS_ENABLED(TARGET_S32G274ASBC2)
+ #if !CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		pinctrl_select_state(dev, "pfe2_rgmii");
+ #endif
+--
+2.30.2
+
